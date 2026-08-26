@@ -7048,6 +7048,110 @@ $("produit").onchange = () => { produitChange = true; majRail(); majFiche(); rel
 $("fichier").onchange = (e) => { if (e.target.files[0]) traiter(e.target.files[0]); };
 
 /* ---------------------------------------------------------------------
+   Choix du produit a l ouverture par le systeme.
+   Un fichier ouvert au clic droit arriverait sinon sur le produit
+   affiche, avec un verdict calcule sur les mauvais criteres.
+   Rend le code choisi, ou null si l operateur annule.
+   --------------------------------------------------------------------- */
+function demanderProduit(nomFichier) {
+  return new Promise((resolve) => {
+    const C = (typeof CHARTE !== "undefined" && CHARTE.couleurs) || {};
+    const voile = document.createElement("div");
+    voile.id = "voileChoixProduit";
+    voile.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);" +
+      "display:flex;align-items:center;justify-content:center;padding:24px";
+
+    const boite = document.createElement("div");
+    boite.style.cssText = "background:" + (C.panneau || "#fff") + ";color:" + (C.texte || "#1A1A1A") +
+      ";border-radius:12px;width:min(560px,100%);max-height:82vh;display:flex;flex-direction:column;" +
+      "box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden";
+
+    const tete = document.createElement("div");
+    tete.style.cssText = "padding:18px 20px 12px;border-bottom:1px solid " + (C.trait || "#D8D8D8");
+    const t1 = document.createElement("div");
+    t1.textContent = "Quel produit ?";
+    t1.style.cssText = "font-weight:900;font-size:19px;letter-spacing:-.02em";
+    const t2 = document.createElement("div");
+    t2.textContent = nomFichier;
+    t2.style.cssText = "font-size:13px;color:" + (C.texteFaible || "#6B6B6B") +
+      ";margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    tete.append(t1, t2);
+
+    const rech = document.createElement("input");
+    rech.type = "search";
+    rech.placeholder = "Chercher un produit\u2026";
+    rech.style.cssText = "margin:12px 20px 0;padding:10px 12px;font:inherit;font-size:14px;" +
+      "border:1px solid " + (C.trait || "#D8D8D8") + ";border-radius:8px;outline:none";
+
+    const liste = document.createElement("div");
+    liste.style.cssText = "overflow:auto;padding:10px 12px 14px;flex:1";
+
+    const pied = document.createElement("div");
+    pied.style.cssText = "padding:10px 20px 14px;font-size:12px;color:" + (C.texteFaible || "#6B6B6B");
+    pied.textContent = "\u00c9chap pour annuler";
+
+    const fermer = (code) => {
+      document.removeEventListener("keydown", auClavier, true);
+      voile.remove();
+      resolve(code || null);
+    };
+    const auClavier = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); fermer(null); }
+    };
+
+    const dessiner = () => {
+      const q = rech.value.trim().toLowerCase();
+      liste.innerHTML = "";
+      for (const fam of ["IMPRIMERIE", "SIGNALETIQUE"]) {
+        const lot = REF.filter((p) => p.famille === fam &&
+          (!q || (p.produit + " " + p.code).toLowerCase().includes(q)));
+        if (!lot.length) continue;
+        const titre = document.createElement("div");
+        titre.textContent = fam;
+        titre.style.cssText = "font-size:11px;font-weight:700;letter-spacing:.1em;padding:12px 8px 6px;color:" +
+          (C.marque || "#CC2A2A");
+        liste.appendChild(titre);
+        for (const p of lot) {
+          const b = document.createElement("button");
+          b.type = "button";
+          const actuel = p.code === $("produit").value;
+          b.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;gap:12px;" +
+            "width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;cursor:pointer;font:inherit;" +
+            "background:" + (actuel ? (C.fond || "#F0F0F0") : "transparent") + ";color:inherit";
+          b.onmouseenter = () => { b.style.background = C.fond || "#F0F0F0"; };
+          b.onmouseleave = () => { b.style.background = actuel ? (C.fond || "#F0F0F0") : "transparent"; };
+          const g = document.createElement("span");
+          g.textContent = p.produit + (actuel ? "  \u00b7 affich\u00e9" : "");
+          g.style.cssText = "font-size:14px" + (actuel ? ";font-weight:700" : "");
+          const d = document.createElement("span");
+          d.textContent = p.code;
+          d.style.cssText = "font-size:11px;color:" + (C.texteFaible || "#6B6B6B") + ";white-space:nowrap";
+          b.append(g, d);
+          b.onclick = () => fermer(p.code);
+          liste.appendChild(b);
+        }
+      }
+      if (!liste.children.length) {
+        const v = document.createElement("div");
+        v.textContent = "Aucun produit ne correspond.";
+        v.style.cssText = "padding:18px 8px;font-size:14px;color:" + (C.texteFaible || "#6B6B6B");
+        liste.appendChild(v);
+      }
+    };
+
+    rech.oninput = dessiner;
+    voile.onclick = (e) => { if (e.target === voile) fermer(null); };
+    document.addEventListener("keydown", auClavier, true);
+
+    boite.append(tete, rech, liste, pied);
+    voile.appendChild(boite);
+    document.body.appendChild(voile);
+    dessiner();
+    setTimeout(() => rech.focus(), 30);
+  });
+}
+
+/* ---------------------------------------------------------------------
    Ouverture depuis le systeme : clic droit sur un PDF, JPEG ou PNG puis
    « Ouvrir avec Calage ». Les types geres sont declares dans
    manifest.json (file_handlers) ; le systeme passe ici les fichiers.
@@ -7065,6 +7169,14 @@ if ("launchQueue" in window && "files" in LaunchParams.prototype) {
         setTimeout(() => { clearInterval(tic); r(); }, 15000);
       });
       await attendre();                       // moteur PDF charge, produit choisi
+      const code = await demanderProduit(f.name);
+      if (!code) return;                      // Echap : on n analyse rien
+      if (code !== $("produit").value) {
+        $("produit").value = code;
+        produitChange = true;
+        majRail();
+        majFiche();
+      }
       traiter(f);
     } catch (e) { /* fichier illisible ou permission refusee */ }
   });
