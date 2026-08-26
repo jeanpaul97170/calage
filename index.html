@@ -3,13 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Calage · Imprimerie de Jarry</title>
+<title>Contrôle fichier · Imprimerie de Jarry</title>
 <meta name="theme-color" content="#12151B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7034,28 +7032,7 @@ function parserCsv(txt) {
   });
 }
 
-/* ---------------------------------------------------------------------
-   Verrou de l'administration.
-   Empêche une modification involontaire du référentiel ou des tarifs
-   depuis un poste d'atelier. Ce n'est pas un secret : le code est lisible
-   dans la source. C'est un garde-fou, pas une protection.
-   POUR CHANGER LE CODE : modifier la ligne ci-dessous, rien d'autre.
-   --------------------------------------------------------------------- */
-const CODE_ADMIN = "1234";
-
-function adminDeverrouille() {
-  if (sessionStorage.getItem("calage.admin") === "ok") return true;
-  const saisi = prompt("Code d'accès à l'administration");
-  if (saisi === null) return false;                 // annulation
-  if (saisi.trim() === CODE_ADMIN) {
-    sessionStorage.setItem("calage.admin", "ok");   // oublié à la fermeture de l'onglet
-    return true;
-  }
-  alert("Code incorrect.");
-  return false;
-}
-
-$("ouvrirAdmin").onclick = () => { if (adminDeverrouille()) ouvrirAdmin("specs"); };
+$("ouvrirAdmin").onclick = () => ouvrirAdmin("specs");
 $("choisirDossier").onclick = () => choisirDossier();
 $("importCsv").onclick = () => $("csv").click();
 $("csv").onchange = async (e) => {
@@ -7069,6 +7046,29 @@ $("csv").onchange = async (e) => {
 
 $("produit").onchange = () => { produitChange = true; majRail(); majFiche(); relancer(); };
 $("fichier").onchange = (e) => { if (e.target.files[0]) traiter(e.target.files[0]); };
+
+/* ---------------------------------------------------------------------
+   Ouverture depuis le systeme : clic droit sur un PDF, JPEG ou PNG puis
+   « Ouvrir avec Calage ». Les types geres sont declares dans
+   manifest.json (file_handlers) ; le systeme passe ici les fichiers.
+   Chromium sur ordinateur uniquement, application installee.
+   --------------------------------------------------------------------- */
+if ("launchQueue" in window && "files" in LaunchParams.prototype) {
+  launchQueue.setConsumer(async (params) => {
+    if (!params.files || !params.files.length) return;
+    try {
+      const f = await params.files[0].getFile();
+      const attendre = () => new Promise((r) => {
+        const tic = setInterval(() => {
+          if (pret && produitCourant()) { clearInterval(tic); r(); }
+        }, 120);
+        setTimeout(() => { clearInterval(tic); r(); }, 15000);
+      });
+      await attendre();                       // moteur PDF charge, produit choisi
+      traiter(f);
+    } catch (e) { /* fichier illisible ou permission refusee */ }
+  });
+}
 
 /* charte graphique : une seule source, le fichier charte.js */
 function appliquerCharte() {
