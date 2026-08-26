@@ -7034,7 +7034,28 @@ function parserCsv(txt) {
   });
 }
 
-$("ouvrirAdmin").onclick = () => ouvrirAdmin("specs");
+/* ---------------------------------------------------------------------
+   Verrou de l'administration.
+   Empêche une modification involontaire du référentiel ou des tarifs
+   depuis un poste d'atelier. Ce n'est pas un secret : le code est lisible
+   dans la source. C'est un garde-fou, pas une protection.
+   POUR CHANGER LE CODE : modifier la ligne ci-dessous, rien d'autre.
+   --------------------------------------------------------------------- */
+const CODE_ADMIN = "1234";
+
+function adminDeverrouille() {
+  if (sessionStorage.getItem("calage.admin") === "ok") return true;
+  const saisi = prompt("Code d'accès à l'administration");
+  if (saisi === null) return false;                 // annulation
+  if (saisi.trim() === CODE_ADMIN) {
+    sessionStorage.setItem("calage.admin", "ok");   // oublié à la fermeture de l'onglet
+    return true;
+  }
+  alert("Code incorrect.");
+  return false;
+}
+
+$("ouvrirAdmin").onclick = () => { if (adminDeverrouille()) ouvrirAdmin("specs"); };
 $("choisirDossier").onclick = () => choisirDossier();
 $("importCsv").onclick = () => $("csv").click();
 $("csv").onchange = async (e) => {
