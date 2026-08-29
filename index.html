@@ -660,6 +660,9 @@ table.grille td.txt input{font-family:var(--police-titre)}
   border-radius:var(--r);font-family:var(--police-titre);font-weight:600;font-size:12px;
   padding:6px 12px;cursor:pointer;color:var(--texte)}
 .lot-b:hover{background:var(--fond);border-color:var(--marque);color:var(--marque)}
+.lot-v{width:0;height:34px;object-fit:contain;flex:0 0 auto;opacity:0;
+  border:1px solid var(--trait);background:var(--fond);transition:opacity .2s}
+.lot-v.on{width:auto;max-width:52px;opacity:1}
 .loupe-barre{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
   display:flex;gap:8px;z-index:2}
 .loupe-barre button{background:rgba(255,255,255,.94);border:1px solid var(--traitFort);
@@ -737,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29h";
+const VERSION = "2026-08-29i";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -7790,6 +7793,7 @@ function blocLot(p) {
           <div class="lot-l${faux ? " ko" : ""}">
             <span class="lot-n">Page ${q.no}</span>
             <span class="lot-f">${q.nom}</span>
+            <img class="lot-v" id="lotv${i}" alt="Page ${q.no}">
             <span class="lot-d">${q.cm || `${q.largCm.toFixed(1)} × ${q.hautCm.toFixed(1)} cm`}
               · ${q.sens.toLowerCase()}${q.rot ? ` · pivotée ${q.rot}°` : ""}</span>
             <button class="lot-b" data-rot="${i}">${q.rot ? "Remettre d'aplomb" : "Pivoter 90°"}</button>
@@ -7799,6 +7803,22 @@ function blocLot(p) {
       ${sensVoulu ? `<p class="lot-txt lot-cible">Le produit demande des pages
         en ${sensVoulu.toLowerCase()}.</p>` : ""}
     </div>`;
+}
+
+/* Petites vues de chaque page du lot assemble, rendues une par une. */
+async function vignettesLot() {
+  const buf = SOURCE_INIT;
+  if (!buf || !LOT_PAGES) return;
+  for (let i = 0; i < LOT_PAGES.length; i++) {
+    const im = $("lotv" + i);
+    if (!im) continue;
+    try {
+      const r = await rendrePage(buf, 96, i + 1);
+      im.src = r.cv.toDataURL("image/png");
+      im.classList.add("on");
+    } catch (e) { /* une vignette manquante ne bloque rien */ }
+    await souffler();
+  }
 }
 
 function ecranAttente(p) {
@@ -7851,6 +7871,10 @@ function ecranAttente(p) {
     LOT_ROT[i] = LOT_ROT[i] ? 0 : 90;
     rassembler();
   };
+  /* Vignette de chaque page du lot : l'operateur pivote ce qu'il VOIT.
+     Rendue en tache de fond, apres l'affichage, pour ne pas retarder
+     l'ecran d'attente. */
+  if (LOT_PAGES && LOT_PAGES.length > 1 && SOURCE_INIT) vignettesLot();
   if ($("prodAttente")) $("prodAttente").onchange = (e) => {
     $("produit").value = e.target.value;
     $("produit").dispatchEvent(new Event("change"));
@@ -7957,7 +7981,10 @@ async function traiterLot(liste) {
     return;
   }
   LOT_FICHIERS = fs;
-  LOT_ROT = fs.map(() => 0);
+  /* Indexe par PAGE, pas par fichier : un PDF de quatre pages compte pour
+     quatre. Tant que les pages ne sont pas connues, le tableau est vide et
+     assemblerFichiers lit 0 partout. */
+  LOT_ROT = [];
   return rassembler();
 }
 
@@ -7972,6 +7999,8 @@ async function rassembler() {
     if (!pret) { alert("Le moteur n'est pas encore prêt, réessayez dans un instant."); return; }
     PROG_ON = true; progres(8, `assemblage de ${fs.length} fichiers`);
     const lot = await assemblerFichiers(fs, p, LOT_ROT);
+    /* Premier assemblage : on connait enfin le nombre de pages. */
+    while (LOT_ROT.length < lot.pages.length) LOT_ROT.push(0);
     const nom = fs[0].name.replace(/\.[^.]+$/, "") + `-et-${fs.length - 1}-autre${fs.length > 2 ? "s" : ""}.pdf`;
     LOT_NOMS = lot.noms;
     LOT_PAGES = lot.pages;
