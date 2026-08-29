@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29l";
+const VERSION = "2026-08-29n";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -2240,6 +2240,7 @@ async function controlerContenu(pageJs, pageLib, p, ctx) {
        mes  = la MESURE technique — entre parentheses, jamais chez le client */
   const dit = (n, t, cons, mes, code) => out.push([n, t, cons || "", mes || "", code || ""]);
   let coupables = [];
+  let secuMiniMm = null;   /* contenu le plus proche du bord, en mm du fini */
   const echelle = ctx.echelle;
   /* echelle = taille de la PAGE / taille FINALE (400 % => 4).
      Le dpi se multiplie par echelle quand on reduit (48 dpi -> 192).
@@ -2357,7 +2358,21 @@ async function controlerContenu(pageJs, pageLib, p, ctx) {
        prepare en defaut. La reference est la PAGE. */
     const [ZX0, ZY0, ZX1, ZY1] = ctx.refPage || ctx.refSecu;
     const enMm = versFinalMm;
-    const tol = versPagePt(p.fond_perdu_mm / 2 + 1);   /* fond perdu + 1 mm */
+    /* Tolerance de debordement.
+       -----------------------------------------------------------------
+       Elle etait exprimee en MILLIMETRES FINAUX. Or `echelle` vaut le
+       rapport entre le fichier et le format commande : sur une banderole
+       sur mesure agrandie dix fois, la meme tolerance devenait dix fois
+       plus serree, et un fichier tout vert en 60 x 11,9 cm passait en
+       « proportions incompatibles » en 600 x 119 cm — sans qu'une seule
+       ligne du fichier ait bouge.
+       Ce qui deborde de la page est ROGNE, et le rognage est
+       proportionnel : agrandir la commande ne coupe pas davantage. La
+       tolerance porte donc aussi un plancher RELATIF a la page, et on
+       retient le plus permissif des deux. */
+    const larPage = ZX1 - ZX0, hauPage = ZY1 - ZY0;
+    const tol = Math.max(versPagePt(p.fond_perdu_mm / 2 + 1),
+                         0.004 * Math.min(larPage, hauPage));
     const d = { gauche: 0, droite: 0, haut: 0, bas: 0 };
     for (const b of boites) {
       d.gauche = Math.max(d.gauche, ZX0 - b.x0);
@@ -2407,6 +2422,11 @@ async function controlerContenu(pageJs, pageLib, p, ctx) {
   if (margeMm > 0) {
     const margePt = versPagePt(margeMm);
     const v = violationsZoneSecurite(boites, ctx.refSecu, margePt);
+    /* Distance du contenu le plus proche du bord, en mm du format fini.
+       Elle decide si l'on peut agrandir le visuel pour couvrir le fond
+       perdu sans pousser du texte sous la marge de securite. */
+    if (v.nb) secuMiniMm = versFinalMm(Math.max(0, v.mini));
+    else if (boites.length) secuMiniMm = margeMm;   /* rien en violation */
     if (v.nb) {
       zoneKo = true;
       /* remonte les coupables jusqu'a l'affichage : ils designeront les
@@ -2506,7 +2526,7 @@ async function controlerContenu(pageJs, pageLib, p, ctx) {
       `À aplatir seulement si le fichier part chez un sous-traitant.`, `${quoi.join(", ")}`);
   }
 
-  return { constats: out, ppiMesure, at, margeMm, zoneKo, coupables };
+  return { constats: out, ppiMesure, at, margeMm, zoneKo, coupables, secuMiniMm };
 }
 
 /* Volets d'un dépliant. Le PDF ne contient aucune information de pli :
@@ -2783,6 +2803,7 @@ async function controler(buffer, p, dims, orientation) {
   let coupablesP1 = [];
   let bandeP1 = null;
   let margeMm = p.marge_secu_mm, zoneKo = false, formatsHeterogenes = null;
+  let secuMini = null;
 
   for (let i = 1; i <= nbAnalyse; i++) {
     const pageI = i === 1 ? page : await doc.getPage(i);
@@ -2820,6 +2841,9 @@ async function controler(buffer, p, dims, orientation) {
     if (i === 1) { ppiMesure = res.ppiMesure; at = res.at; margeMm = res.margeMm; zoneKo = res.zoneKo;
                    coupablesP1 = res.coupables || []; }
     else { zoneKo = zoneKo || res.zoneKo; }
+    /* La page la plus contrainte decide : agrandir vaut pour tout le fichier. */
+    if (res.secuMiniMm !== null && res.secuMiniMm !== undefined)
+      secuMini = (secuMini === null) ? res.secuMiniMm : Math.min(secuMini, res.secuMiniMm);
 
     for (const [n, t, cons, mes, code] of res.constats) {
       if (nbAnalyse > 1 && n === "VERT") continue;          // on ne répète pas les OK page par page
@@ -3186,7 +3210,7 @@ async function controler(buffer, p, dims, orientation) {
 
   if (p.note) constats.push(["NOTE", p.note]);
 
-  return { verdict, constats, lp, hp, fp, echelle, trim: !!b.trim, margeMm, zoneKo, proposition, ratioKo, fpIntegre, orientVoulue, nettete, bande: bandeP1, coupables: coupablesP1, sansRaster, codes };
+  return { verdict, constats, lp, hp, fp, echelle, trim: !!b.trim, margeMm, zoneKo, proposition, ratioKo, fpIntegre, orientVoulue, nettete, bande: bandeP1, coupables: coupablesP1, sansRaster, codes, secuMiniMm: secuMini };
 }
 
 /* ------------------------------------------------------------------ */
@@ -3332,6 +3356,8 @@ async function corriger(buffer, p, opt, couleurs, dims) {
   }
 
   const out = await PDFLib.PDFDocument.create();
+  /* Portee fichier, pas page : le journal dit une fois ce qui a ete fait. */
+  let aCouvert = false, motifCouvre = "";
   const pages = await out.embedPdf(src, src.getPageIndices());
 
   const journal = [];
@@ -3384,7 +3410,9 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     /* Le visuel n'est jamais étiré dans le fond perdu : il garde ses
        proportions et sa taille de format fini, moins la marge demandée.
        Le vide créé autour est comblé par la couleur des bords du visuel. */
-    let k, pageLf = pageL, pageHf = pageH;
+    let k, pageLf = pageL, pageHf = pageH, couvrir = false, journalCouvre = "";
+    /* Remontes hors de la boucle : le journal est ecrit une fois pour le
+       fichier, pas une fois par page. */
     /* La mise a l'echelle sur la TrimBox source ne vaut QUE si le produit a
        du fond perdu : elle laisse volontairement deborder la page pour
        conserver le fond perdu d'origine. Sur un produit sans fond perdu
@@ -3400,8 +3428,48 @@ async function corriger(buffer, p, opt, couleurs, dims) {
       pageLf = Math.max(trimL + 2*bleed, effL*k);
       pageHf = Math.max(trimH + 2*bleed, effH*k);
     } else {
+      /* ================================================================ */
+      /* FOND PERDU : COUVRIR OU COMBLER — regle a trois cas              */
+      /* ---------------------------------------------------------------- */
+      /* Ajuster au format fini puis centrer sur une page plus grande      */
+      /* fabrique le fond perdu : la bande est une couleur inventee, pas   */
+      /* du visuel. La pratique du metier est d'agrandir de ~4 % pour      */
+      /* couvrir le format + le fond perdu, et de laisser le massicot      */
+      /* couper dans du vrai dessin.                                       */
+      /* MAIS agrandir rapproche le contenu du trait de coupe : un texte   */
+      /* a 5 mm du bord ressort a 3,2 mm. Le cout est d'a peu pres la      */
+      /* valeur du fond perdu par bord.                                    */
+      /* On ne couvre donc que si le fichier a de la marge a donner :      */
+      /* contenu a au moins marge + fond perdu du bord, et proportions     */
+      /* proches. Sinon on comble, comme avant.                            */
+      /* ================================================================ */
       const viseL = trimL - 2*marge, viseH = trimH - 2*marge;
-      k = Math.min(viseL/effL, viseH/effH);
+      const kAjuste = Math.min(viseL/effL, viseH/effH);
+      const kCouvre = Math.max(pageL/effL, pageH/effH);
+      const ecartRatio = Math.abs((effL/effH) / (pageL/pageH) - 1);
+      const bordMm = p.fond_perdu_mm / 2;
+      const dispo = (opt.secuMiniMm === null || opt.secuMiniMm === undefined)
+        ? null : opt.secuMiniMm;
+      couvrir = bleed > 0 && marge === 0 && !trimSrc
+             && ecartRatio <= 0.03
+             && dispo !== null && dispo >= p.marge_secu_mm + bordMm
+             && kCouvre >= kAjuste;
+      k = couvrir ? kCouvre : kAjuste;
+      aCouvert = aCouvert || couvrir;
+      if (couvrir) {
+        const reste = dispo * kCouvre - bordMm;
+        journalCouvre = `Agrandi de ${((kCouvre - 1) * 100).toFixed(1)} % pour couvrir le fond perdu : `
+          + `le débord est du visuel réel, aucune bande n'est fabriquée. Le contenu le plus proche `
+          + `passe de ${dispo.toFixed(1)} à ${reste.toFixed(1)} mm du trait de coupe, `
+          + `pour ${p.marge_secu_mm} mm requis.`;
+      } else if (bleed > 0 && !trimSrc && dispo !== null && dispo < p.marge_secu_mm + bordMm) {
+        journalCouvre = `Fond perdu comblé plutôt qu'agrandi : le contenu arrive à ${dispo.toFixed(1)} mm `
+          + `du bord, l'agrandir l'aurait amené sous la marge de sécurité de ${p.marge_secu_mm} mm.`;
+      } else if (bleed > 0 && !trimSrc && ecartRatio > 0.03) {
+        journalCouvre = `Fond perdu comblé plutôt qu'agrandi : les proportions du fichier s'écartent de `
+          + `${(ecartRatio * 100).toFixed(0)} % du format commandé, l'agrandir aurait rogné du visuel.`;
+      }
+      if (journalCouvre && !motifCouvre) motifCouvre = journalCouvre;
     }
     const posL = effL*k, posH = effH*k;
     let ox = (pageLf - posL)/2, oy = (pageHf - posH)/2;
@@ -3435,7 +3503,7 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     const pg = out.addPage([pageLf, pageHf]);
     pg.drawRectangle({ x:0, y:0, width:pageLf, height:pageHf, color: RGB(c.dominante) });
 
-    if (!c.uniforme && (bleed > 0 || marge > 0)) {
+    if (!couvrir && !c.uniforme && (bleed > 0 || marge > 0)) {
       const bandes = [
         [0, oy + posH, pageLf, pageHf - (oy + posH), c.haut],
         [0, 0, pageLf, oy, c.bas],
@@ -3474,7 +3542,11 @@ async function corriger(buffer, p, opt, couleurs, dims) {
            || { larg: p.larg_cm, haut: p.haut_cm };
     journal.push(`Mise à l'échelle vers le format fini ${d.larg} × ${d.haut} cm.`);
   }
-  if (bleed > 0) journal.push(`Fond perdu ajouté sans étirement : ${p.fond_perdu_mm / 2} mm par bord, soit ${p.fond_perdu_mm} mm au format. Comblé ${nomCouleur}. TrimBox et BleedBox déclarées.`);
+  if (motifCouvre) journal.push(motifCouvre);
+  if (bleed > 0 && !aCouvert)
+    journal.push(`Fond perdu ajouté sans étirement : ${p.fond_perdu_mm / 2} mm par bord, soit ${p.fond_perdu_mm} mm au format. Comblé ${nomCouleur}. TrimBox et BleedBox déclarées.`);
+  else if (bleed > 0)
+    journal.push(`Fond perdu de ${p.fond_perdu_mm / 2} mm par bord couvert par le visuel. TrimBox et BleedBox déclarées.`);
   if (marge > 0) journal.push(`Marge de sécurité de ${opt.margeSecu} mm dégagée, comblée ${nomCouleur}.`);
   if (!journal.length) journal.push("Boîtes de page redéclarées, contenu inchangé.");
 
@@ -7651,6 +7723,7 @@ function afficher(r, p, nomFichier, corrige) {
       oeillets:     !!($("cOeillets") && $("cOeillets").checked),
       centrerVisuel:!!($("cCentrer") && $("cCentrer").checked),
       encre:        r.bande && r.bande.encre ? r.bande.encre : null,
+      secuMiniMm:   (r.secuMiniMm === undefined) ? null : r.secuMiniMm,
       remplissage:  ($("cBlanc") ? $("cBlanc").checked : CHOIX_BLANC) ? "blanc" : "couleur",
       orientationCible: r.orientVoulue,
     };
