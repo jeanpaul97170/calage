@@ -179,6 +179,17 @@ main{display:grid;grid-template-columns:236px minmax(0,1fr) 300px;height:calc(10
   gap:7px;padding:8px 16px;border:0;border-radius:6px;cursor:pointer;
   font-family:inherit;font-size:13px;font-weight:600;background:#1E7A46;color:#fff}
 .bandeau button.vertplein:hover{background:#186139}
+/* Un seul bouton plein a la fois : le telechargement est l'aboutissement du
+   controle, « controler un autre » est une remise a zero. Les mettre au meme
+   rang faisait hesiter l'operateur entre deux verts identiques. */
+.bandeau button.vertplein.premier{padding:10px 20px;font-size:13.5px}
+.bandeau button.bandeau-2{flex:0 0 auto;display:inline-flex;align-items:center;
+  gap:7px;padding:8px 15px;border:1px solid var(--traitFort);border-radius:6px;
+  cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;
+  background:var(--panneau);color:var(--texte)}
+.bandeau button.bandeau-2:hover{background:var(--fond);border-color:var(--texteFaible)}
+.bandeau button.bandeau-2 svg{width:15px;height:15px;stroke:var(--texte);fill:none;
+  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 /* le fill:none n'etait declare que pour .barreoutils : sorti de la barre,
    le SVG reprenait son fill noir par defaut, d'ou le disque plein */
 .bandeau button.vertplein svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.9;
@@ -628,6 +639,27 @@ table.grille td.txt input{font-family:var(--police-titre)}
 .attente-fmt{color:var(--texteFaible);font-family:var(--police-donnees);font-size:12.5px}
 .attente-lot{color:var(--texteFaible);font-family:var(--police-donnees);font-size:11px;
   max-width:70ch;line-height:1.5}
+.lot{text-align:left;max-width:78ch;margin:0 auto 16px;border:1px solid var(--trait);
+  border-radius:var(--r);overflow:hidden;background:var(--panneau)}
+.lot-ko{border-color:var(--orange)}
+.lot-tete{padding:10px 14px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  font-weight:700;border-bottom:1px solid var(--trait)}
+.lot-ko .lot-tete{background:var(--orangeFond);color:var(--orange);border-bottom-color:var(--orange)}
+.lot-txt{margin:0;padding:11px 14px 0;font-size:12.5px;line-height:1.55;color:var(--texte)}
+.lot-cible{color:var(--texteFaible);padding-bottom:11px}
+.lot-lignes{padding:10px 14px}
+.lot-l{display:flex;align-items:center;gap:12px;padding:7px 0;flex-wrap:wrap;
+  border-top:1px solid var(--trait)}
+.lot-l:first-child{border-top:0}
+.lot-n{font-family:var(--police-donnees);font-size:11.5px;color:var(--texteFaible);
+  flex:0 0 62px}
+.lot-f{font-size:12.5px;flex:1 1 16ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lot-d{font-family:var(--police-donnees);font-size:11.5px;color:var(--texteFaible)}
+.lot-l.ko .lot-d{color:var(--orange)}
+.lot-b{margin-left:auto;background:var(--panneau);border:1px solid var(--traitFort);
+  border-radius:var(--r);font-family:var(--police-titre);font-weight:600;font-size:12px;
+  padding:6px 12px;cursor:pointer;color:var(--texte)}
+.lot-b:hover{background:var(--fond);border-color:var(--marque);color:var(--marque)}
 .loupe-barre{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
   display:flex;gap:8px;z-index:2}
 .loupe-barre button{background:rgba(255,255,255,.94);border:1px solid var(--traitFort);
@@ -705,7 +737,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29g";
+const VERSION = "2026-08-29h";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -6248,6 +6280,16 @@ function compareDemandeFourni(r, p) {
 /* ==================================================================== */
 function dimClient(court) {
   const o = ORIGINE;
+  /* Sur un LOT, ORIGINE est nul : le fichier analyse est le PDF assemble.
+     La dimension declaree de la page affichee est alors portee par
+     LOT_PAGES — sinon l'outil retombait sur la taille de la page assemblee
+     (9,6 x 13,5 cm) et contredisait Photoshop, exactement ce qu'on avait
+     corrige sur le fichier unique. */
+  if (!o && LOT_PAGES && LOT_PAGES.length) {
+    const q = LOT_PAGES[Math.min(PAGE_VUE, LOT_PAGES.length) - 1];
+    if (q && q.cm) return { L: 0, H: 0, cm: q.cm, dpi: q.dpi, px: q.px,
+      complet: court ? q.cm : `${q.cm} · ${q.px} à ${q.dpi} dpi` };
+  }
   if (!o || o.type !== "image" || !(o.pxL > 0)) return null;
   const dx = o.dpiX > 0 ? o.dpiX : 72, dy = o.dpiY > 0 ? o.dpiY : 72;
   const L = o.pxL / dx * 2.54, H = o.pxH / dy * 2.54;
@@ -7454,8 +7496,8 @@ function afficher(r, p, nomFichier, corrige) {
       <span class="etat">${code}</span>
       <span class="quoi"><b>${quoi}</b>${aide}</span>
       <span class="fic mono">${nomFichier}</span>
-      ${corrige ? `<button id="telecharger" class="cta-vert">${ico(ICO.telech)}Télécharger le fichier corrigé</button>` : ""}
-      <button id="autre" class="vertplein">${ico(ICO.autre)}Contrôler un autre fichier</button>
+      ${corrige ? `<button id="telecharger" class="vertplein premier">${ico(ICO.telech)}Télécharger le fichier corrigé</button>` : ""}
+      <button id="autre" class="${corrige ? "bandeau-2" : "vertplein"}">${ico(ICO.autre)}Contrôler un autre fichier</button>
     </div>
     ${blocAxes(r)}
     ${outils}
@@ -7709,6 +7751,56 @@ async function souffler() { return new Promise((r) => setTimeout(r, 0)); }
    tant que l'operateur n'a pas demande le controle. */
 let ANALYSE_DEMANDEE = false;
 
+/* ==================================================================== */
+/* PAGES D'UN LOT — ce qui ne va pas ensemble, et quoi faire             */
+/* -------------------------------------------------------------------- */
+/* Deux JPEG pour un recto verso, l'un en portrait, l'autre en paysage.  */
+/* L'outil le constatait apres l'analyse, en fin de parcours, sans dire  */
+/* QUELLE page pivoter. La decision se prend ici, AVANT l'analyse, page  */
+/* par page, et l'assemblage est rejoue depuis les fichiers d'origine.   */
+/* ==================================================================== */
+function blocLot(p) {
+  if (!LOT_PAGES || LOT_PAGES.length < 2) return "";
+  const d = diagnosticLot(LOT_PAGES);
+  const c = formatCible(p, dimsSaisies());
+  const sensVoulu = c ? (c.haut >= c.larg ? "PORTRAIT" : "PAYSAGE") : null;
+  const alerte = !d ? "" :
+      d.reparableParRotation
+        ? `Ces pages ont la même taille mais pas le même sens. Pivoter celle qui
+           ne va pas suffit à les rendre imprimables ensemble.`
+    : d.taillesMelees && d.sensMeles
+        ? `Ces pages n'ont ni la même taille ni le même sens. Un recto verso
+           s'imprime sur une seule feuille : elles ne pourront être ni imprimées
+           ni coupées ensemble. Pivoter aligne les sens, mais l'écart de taille
+           restera — il faudra redemander un fichier au client.`
+    : d.taillesMelees
+        ? `Ces pages n'ont pas la même taille. Elles ne pourront être ni imprimées
+           ni coupées ensemble : redemander un fichier au client.`
+        : `Ces pages n'ont pas le même sens. Pivoter celle qui ne va pas les
+           rendra imprimables ensemble.`;
+
+  return `
+    <div class="lot ${d ? "lot-ko" : "lot-ok"}">
+      <div class="lot-tete">${d ? "Ces pages ne vont pas ensemble" : "Pages assemblées"}</div>
+      ${alerte ? `<p class="lot-txt">${alerte}</p>` : ""}
+      <div class="lot-lignes">
+        ${LOT_PAGES.map((q, i) => {
+          const faux = sensVoulu && q.sens !== sensVoulu;
+          return `
+          <div class="lot-l${faux ? " ko" : ""}">
+            <span class="lot-n">Page ${q.no}</span>
+            <span class="lot-f">${q.nom}</span>
+            <span class="lot-d">${q.cm || `${q.largCm.toFixed(1)} × ${q.hautCm.toFixed(1)} cm`}
+              · ${q.sens.toLowerCase()}${q.rot ? ` · pivotée ${q.rot}°` : ""}</span>
+            <button class="lot-b" data-rot="${i}">${q.rot ? "Remettre d'aplomb" : "Pivoter 90°"}</button>
+          </div>`;
+        }).join("")}
+      </div>
+      ${sensVoulu ? `<p class="lot-txt lot-cible">Le produit demande des pages
+        en ${sensVoulu.toLowerCase()}.</p>` : ""}
+    </div>`;
+}
+
 function ecranAttente(p) {
   const c = formatCible(p, dimsSaisies());
   const cible = c ? `${c.larg} × ${c.haut} cm` : "format libre";
@@ -7717,7 +7809,7 @@ function ecranAttente(p) {
       <div class="attente-quoi">
         <b>${dernierNom || "fichier déposé"}</b>
         ${LOT_NOMS && LOT_NOMS.length > 1
-          ? `<span class="attente-lot">${LOT_NOMS.length} fichiers assemblés · ${LOT_NOMS.join(" · ")}</span>` : ""}
+          ? `<span class="attente-lot">${LOT_NOMS.length} fichiers assemblés</span>` : ""}
         <!-- Le produit se change ICI, avant l'analyse. Le rail est loin du
              bouton, et se tromper de produit invalide tout le controle : le
              choix doit etre a portee de regard du fichier. -->
@@ -7740,6 +7832,7 @@ function ecranAttente(p) {
             <path d="M5 12h14M13 6l6 6-6 6"/></svg>Analyser le fichier</button>
         <button id="autre2" class="cta-secondaire">Contrôler un autre fichier</button>
       </div>
+      ${blocLot(p)}
       <p class="attente-aide">Le fichier est affiché tel qu'il a été reçu. Rien n'a été
       recadré, redimensionné ni recentré. Vérifiez le produit et les dimensions à droite,
       puis lancez l'analyse.</p>
@@ -7753,6 +7846,11 @@ function ecranAttente(p) {
   /* Le meme chemin que le rail : on ecrit dans le select maitre et on
      declenche son onchange, pour ne pas dupliquer la logique de changement
      de produit — image reconvertie, reperes redessines, analyse invalidee. */
+  for (const b of document.querySelectorAll(".lot-b")) b.onclick = () => {
+    const i = Number(b.dataset.rot);
+    LOT_ROT[i] = LOT_ROT[i] ? 0 : 90;
+    rassembler();
+  };
   if ($("prodAttente")) $("prodAttente").onchange = (e) => {
     $("produit").value = e.target.value;
     $("produit").dispatchEvent(new Event("change"));
@@ -7771,12 +7869,14 @@ function ecranAttente(p) {
 /* Conversion SEQUENTIELLE, jamais en parallele : sur des gros JPEG, huit */
 /* decodages simultanes font tomber l'onglet.                            */
 /* ==================================================================== */
-async function assemblerFichiers(liste, p) {
+async function assemblerFichiers(liste, p, rot) {
   const doc = await PDFLib.PDFDocument.create();
-  const noms = [];
+  const pages = [];
+  let n = 0;
   for (const f of liste) {
-    noms.push(f.name);
     const brut = await f.arrayBuffer();
+    const debut = doc.getPageCount();
+    let meta = { nom: f.name, cm: "", px: "", dpi: 0 };
     if (estImage(f)) {
       const genre = genreImage(f);
       const mime = genre === "png" ? "image/png" : "image/jpeg";
@@ -7790,16 +7890,56 @@ async function assemblerFichiers(liste, p) {
       const un = await imageVersPdf(brut, genre, nat.larg, nat.haut);
       const src = await PDFLib.PDFDocument.load(un);
       for (const pg of await doc.copyPages(src, src.getPageIndices())) doc.addPage(pg);
+      /* Dimension DECLAREE, celle que Photoshop affiche : elle sert
+         uniquement a parler au client, jamais au controle geometrique. */
+      const dres = dpiEnTete(brut, genre);
+      const dx = dres ? dres.x : 72, dy = dres ? dres.y : 72;
+      meta = { nom: f.name, dpi: Math.round(dx), px: `${pxL} × ${pxH} px`,
+               cm: `${(pxL / dx * 2.54).toFixed(1)} × ${(pxH / dy * 2.54).toFixed(1)} cm` };
     } else {
       let src;
       try { src = await PDFLib.PDFDocument.load(brut, { ignoreEncryption: true }); }
       catch (e) { throw new Error(` : « ${f.name} » n'est pas un PDF lisible`); }
       for (const pg of await doc.copyPages(src, src.getPageIndices())) doc.addPage(pg);
     }
+    /* Rotation demandee par l'operateur, page par page. */
+    for (let k = debut; k < doc.getPageCount(); k++) {
+      const pg = doc.getPage(k);
+      if (rot && rot[n]) pg.setRotation(PDFLib.degrees(((rot[n] % 360) + 360) % 360));
+      const t = pg.getSize(), q = (rot && rot[n]) % 180 === 90;
+      const L = q ? t.height : t.width, H = q ? t.width : t.height;
+      pages.push(Object.assign({}, meta, {
+        no: n + 1, rot: (rot && rot[n]) || 0,
+        largCm: L / 72 * 2.54, hautCm: H / 72 * 2.54,
+        sens: H >= L ? "PORTRAIT" : "PAYSAGE" }));
+      n++;
+    }
     await souffler();          /* la barre de progression respire */
   }
   if (!doc.getPageCount()) throw new Error(" : aucun contenu exploitable dans ces fichiers");
-  return { octets: (await doc.save()).buffer, noms: noms, pages: doc.getPageCount() };
+  return { octets: (await doc.save()).buffer, pages: pages,
+           noms: pages.map((x) => x.nom), nb: doc.getPageCount() };
+}
+
+/* Les pages vont-elles ensemble ?
+   Un recto verso s'imprime sur UNE feuille : deux pages de sens ou de
+   format differents ne peuvent etre ni imprimees ni coupees ensemble.
+   L'outil le constatait deja, mais sans dire QUOI FAIRE. Ici on nomme la
+   page fautive et on propose de la pivoter. */
+function diagnosticLot(pages) {
+  if (!pages || pages.length < 2) return null;
+  const sens = [...new Set(pages.map((x) => x.sens))];
+  const fmt = [...new Set(pages.map((x) =>
+    `${x.largCm.toFixed(1)}x${x.hautCm.toFixed(1)}`))];
+  /* Deux pages de sens opposes ont, par construction, des formats
+     differents : ne pas compter deux fois le meme probleme. */
+  const memeFormatApresRotation = fmt.length > 1 && sens.length > 1
+    && new Set(pages.map((x) => [x.largCm, x.hautCm].sort((a, b) => a - b)
+        .map((v) => v.toFixed(1)).join("x"))).size === 1;
+  if (sens.length === 1 && fmt.length === 1) return null;
+  return { sensMeles: sens.length > 1,
+           taillesMelees: fmt.length > 1 && !memeFormatApresRotation,
+           reparableParRotation: sens.length > 1 && memeFormatApresRotation };
 }
 
 /* Point d'entree unique. Un seul fichier suit le chemin d'origine ; a
@@ -7816,17 +7956,30 @@ async function traiterLot(liste) {
         + `${fs.length} fichiers ont été déposés.`);
     return;
   }
+  LOT_FICHIERS = fs;
+  LOT_ROT = fs.map(() => 0);
+  return rassembler();
+}
+
+/* Assemble (ou reassemble) le lot courant avec les rotations demandees.
+   Rejoue depuis les fichiers d'origine : une rotation n'est jamais
+   appliquee par-dessus la precedente. */
+async function rassembler() {
+  const fs = LOT_FICHIERS;
+  if (!fs || fs.length < 2) return;
+  const p = produitCourant();
   try {
     if (!pret) { alert("Le moteur n'est pas encore prêt, réessayez dans un instant."); return; }
     PROG_ON = true; progres(8, `assemblage de ${fs.length} fichiers`);
-    const lot = await assemblerFichiers(fs, p);
+    const lot = await assemblerFichiers(fs, p, LOT_ROT);
     const nom = fs[0].name.replace(/\.[^.]+$/, "") + `-et-${fs.length - 1}-autre${fs.length > 2 ? "s" : ""}.pdf`;
     LOT_NOMS = lot.noms;
+    LOT_PAGES = lot.pages;
     ASSEMBLAGE_EN_COURS = true;
     await traiter(new File([lot.octets], nom, { type: "application/pdf" }));
   } catch (e) {
     PROG_ON = false;
-    LOT_NOMS = null;
+    LOT_NOMS = null; LOT_PAGES = null; LOT_FICHIERS = null;
     alert("Ces fichiers n'ont pas pu être assemblés" + (e.message || "") + ".");
   }
 }
@@ -7840,6 +7993,9 @@ function plafondPages(p) {
 }
 
 let LOT_NOMS = null;
+let LOT_PAGES = null;        /* une entree par page : nom, dimension declaree, sens */
+let LOT_FICHIERS = null;     /* les fichiers d'origine, pour rejouer l'assemblage */
+let LOT_ROT = null;          /* rotation demandee par page, en degres */
 let ASSEMBLAGE_EN_COURS = false;
 
 async function traiter(f) {
@@ -7857,7 +8013,9 @@ async function traiter(f) {
       ANALYSE_DEMANDEE = false;
       /* Un depot direct efface la trace d'un lot precedent : le bandeau ne
          doit jamais annoncer des fichiers qui ne sont plus la. */
-      if (!ASSEMBLAGE_EN_COURS) LOT_NOMS = null;
+      if (!ASSEMBLAGE_EN_COURS) {
+        LOT_NOMS = null; LOT_PAGES = null; LOT_FICHIERS = null; LOT_ROT = null;
+      }
       ASSEMBLAGE_EN_COURS = false;
       ouvrirLigne(f.name);
       const brut = await f.arrayBuffer();
