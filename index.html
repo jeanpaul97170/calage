@@ -568,6 +568,16 @@ table.grille td.txt input{font-family:var(--police-titre)}
 .apercus figcaption{margin-top:8px;font-family:var(--police-donnees);font-size:10.5px;
   letter-spacing:.05em;color:var(--texteFaible);text-transform:uppercase}
 .apercus figcaption b{color:var(--texte);font-weight:600}
+.tete-apercus{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--texteFaible)}
+.tete-apercus button{background:var(--panneau);border:1px solid var(--traitFort);
+  border-radius:var(--r);font-family:var(--police-titre);font-weight:600;font-size:12.5px;
+  letter-spacing:0;text-transform:none;color:var(--texte);padding:7px 14px;cursor:pointer}
+.tete-apercus button:hover{background:var(--fond)}
+.pe-seul{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.pe-seul .cadre{max-width:100%;max-height:78vh;display:flex;justify-content:center}
+.pe-seul img{max-width:100%;max-height:78vh;object-fit:contain}
 .cmpdf{margin-top:9px;border-top:1px solid var(--trait);padding-top:8px;
   font-family:var(--police-donnees);font-size:10.5px;line-height:1.45}
 .cmpdf-tete,.cmpdf-l{display:grid;grid-template-columns:74px 1fr 1fr;gap:8px;align-items:baseline}
@@ -578,21 +588,27 @@ table.grille td.txt input{font-family:var(--police-titre)}
 .cmpdf-d{color:var(--texte)}
 .cmpdf-f.ok{color:var(--vert)}
 .cmpdf-f.ecart{color:var(--orange)}
-.attente{padding:16px 0 4px}
-.attente-tete{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px}
-.cta-analyse{background:var(--marque);color:#fff;border:0;border-radius:var(--r);
-  font-family:var(--police-titre);font-weight:700;font-size:14px;letter-spacing:.02em;
-  padding:12px 24px;cursor:pointer;display:inline-flex;align-items:center;gap:9px}
-.cta-analyse:hover{filter:brightness(.93)}
-.attente-quoi{display:flex;flex-direction:column;gap:2px;font-size:12px;min-width:0}
-.attente-quoi b{font-family:var(--police-donnees);font-size:11.5px;color:var(--texte);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46ch}
+.attente{padding:18px 0 4px;text-align:center}
+.attente-tete{display:flex;align-items:center;justify-content:center;gap:12px;
+  flex-wrap:wrap;margin:14px 0 12px}
+/* Vert de verdict, pas le rouge de marque : ce bouton lance une action sûre,
+   il ne doit pas se lire comme une alerte. */
+.cta-analyse{background:var(--vert);color:#fff;border:0;border-radius:var(--r);
+  font-family:var(--police-titre);font-weight:700;font-size:14.5px;letter-spacing:.02em;
+  padding:13px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:10px}
+.cta-analyse:hover{filter:brightness(1.08)}
+.cta-analyse svg{display:block}
+.cta-secondaire{background:var(--panneau);color:var(--texte);
+  border:1px solid var(--traitFort);border-radius:var(--r);
+  font-family:var(--police-titre);font-weight:600;font-size:13.5px;
+  padding:12px 20px;cursor:pointer}
+.cta-secondaire:hover{background:var(--fond)}
+.attente-quoi{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12.5px}
+.attente-quoi b{font-family:var(--police-donnees);font-size:12px;color:var(--texte);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56ch}
 .attente-quoi span{color:var(--texteFaible)}
-.lien-autre{margin-left:auto;background:none;border:0;color:var(--marque);
-  font-family:var(--police-titre);font-size:12.5px;font-weight:600;
-  text-decoration:underline;cursor:pointer}
-.attente-aide{max-width:74ch;font-size:12.5px;line-height:1.55;color:var(--texteFaible);
-  margin:0 0 14px}
+.attente-aide{max-width:72ch;margin:0 auto 16px;font-size:12.5px;line-height:1.55;
+  color:var(--texteFaible)}
 .opt .sansobjet{display:block;margin-top:3px;font-style:normal;
   color:var(--texteFaible);opacity:.85}
 .leg{padding:10px 0 0;font-size:11px;color:var(--texteFaible);display:flex;gap:12px;flex-wrap:wrap}
@@ -658,7 +674,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29a";
+const VERSION = "2026-08-29c";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -3782,6 +3798,9 @@ function calculerDevis(p, r, dims, etat) {
     } else if (p.prix_m2 > 0) {
       base = p.prix_m2 * surface * qte;
       methode = `${p.prix_m2.toFixed(2)} ${TARIFS.devise}/m² × ${surface.toFixed(2)} m²${qte > 1 ? ` × ${qte}` : ""}`;
+    } else {
+      /* Ni grille ni prix unique : pas de tarif, pas de montant invente. */
+      base = 0; methode = "";
     }
   } else if (p.mode_prix === "UNITE" && p.prix_unite > 0) {
     base = p.prix_unite * qte;
@@ -5303,10 +5322,16 @@ function majEtatDossier() {
 /* Interface                                                           */
 /* ------------------------------------------------------------------ */
 const $ = (id) => document.getElementById(id);
+/* Le bandeau doit repondre a UNE question : est-ce que je lance ?
+   « A SIGNALER » decrivait l'etat du fichier sans dire quoi faire.
+   Les trois libelles portent maintenant la decision de production. */
 const LIB = {
-  VERT:   ["PRÊT", "Le fichier peut partir en production", "Rien à signaler au client."],
-  ORANGE: ["À SIGNALER", "Imprimable, mais le client doit être prévenu", "Lire la synthèse ci-dessous avant de lancer."],
-  ROUGE:  ["À REPRENDRE", "Le fichier ne donnera pas un résultat acceptable", "Le client refait son fichier, ou il passe par un service de reprise."],
+  VERT:   ["BON POUR IMPRESSION", "Le fichier peut partir en production",
+           "Rien à signaler au client."],
+  ORANGE: ["BON AVEC RÉSERVE", "Le fichier peut partir en production, après accord du client",
+           "Prévenir le client des points ci-dessous, puis lancer."],
+  ROUGE:  ["NE PAS IMPRIMER", "Le fichier ne donnera pas un résultat acceptable",
+           "Le client refait son fichier, ou il passe par un service de reprise."],
 };
 
 const CLE_RECENTS = "calage.recents";
@@ -6409,6 +6434,29 @@ function brancherUnCompare(id) {
   window.addEventListener("touchend", fin);
 }
 
+/* Plein ecran du seul fichier client.
+   Le comparateur ne s'ouvrait que lorsqu'une correction avait ete produite :
+   sur un fichier deja conforme — le cas le plus frequent — l'operateur
+   n'avait aucun moyen de regarder le visuel en grand. */
+function ouvrirApercuSeul(p) {
+  const v = vues.avant;
+  if (!v) return;
+  $("calques").innerHTML = `
+  <div class="pleinecran" id="apPlein">
+    <div class="pe-tete">
+      <h2>${p.produit} — fichier client</h2>
+      <button id="apFermer">Fermer</button>
+    </div>
+    <div class="pe-corps pe-seul">
+      <div class="cadre"><span class="porte"><img src="${v.url}" alt="Fichier client"></span></div>
+      <p class="cmp-leg">${v.largCm.toFixed(1)} × ${v.hautCm.toFixed(1)} cm de page</p>
+    </div>
+  </div>`;
+  const fermer = () => { $("calques").innerHTML = ""; document.onkeydown = null; };
+  $("apFermer").onclick = fermer;
+  document.onkeydown = (e) => { if (e.key === "Escape") fermer(); };
+}
+
 function ouvrirCompare(p) {
   if (!vues.avant || !vues.apres) return;
   $("calques").innerHTML = `
@@ -6428,6 +6476,8 @@ function ouvrirCompare(p) {
 function brancherCompare(r, p) {
   brancherUnCompare("cmp");
   if ($("cmpGrand")) $("cmpGrand").onclick = () => ouvrirCompare(p);
+  if ($("apGrand")) $("apGrand").onclick = () =>
+    (vues.apres ? ouvrirCompare(p) : ouvrirApercuSeul(p));
 }
 
 /* ==================================================================== */
@@ -6585,13 +6635,23 @@ function syntheseAxes(r) {
   const n = r.sansRaster ? null : noteNettete(r.nettete, P_COURANT);
   if (n) {
     out[0].niveau = rang[n.niveau] > rang[out[0].niveau] ? n.niveau : out[0].niveau;
-    out[0].mot = `${n.utile} dpi utiles`;
     out[0].sous = n.mini ? `minimum ${n.mini}` : "";
     out[0].barre = n;
-    out[0].detail = `Contours étalés sur ${n.transition.toFixed(2)} px, soit environ `
-      + `${n.utile} dpi réellement portés par les pixels`
-      + (n.cible ? `. Minimum ${n.mini}, cible ${n.cible} pour ce produit.` : ".")
-      + ` Estimation, pas une mesure directe.`;
+    if (n.mesure) {
+      out[0].mot = `${n.utile} dpi utiles`;
+      out[0].detail = `Contours étalés sur ${(n.transition || 0).toFixed(2)} px, soit environ `
+        + `${n.utile} dpi réellement portés par les pixels`
+        + (n.cible ? `. Minimum ${n.mini}, cible ${n.cible} pour ce produit.` : ".")
+        + ` Estimation, pas une mesure directe.`;
+    } else {
+      /* Etage 1 : calcul direct, aucune mesure de contour. `transition`
+         n'existe pas sur ce repli — l'afficher plantait l'analyse. */
+      out[0].mot = `${n.utile} dpi à la taille commandée`;
+      out[0].detail = `Les pixels du fichier rapportés au format commandé. C'est un `
+        + `plafond : la netteté réelle ne peut pas dépasser cette valeur.`
+        + (n.cible ? ` Minimum ${n.mini}, cible ${n.cible} pour ce produit.` : "")
+        + ` La mesure fine des contours n'a pas abouti sur ce fichier.`;
+    }
   } else {
     /* Un fichier vectoriel n'a pas de nettete a mesurer : ses contours sont
        parfaits par construction, la mesure n'a simplement pas d'objet.
@@ -6688,6 +6748,10 @@ function blocApercus(r, p) {
                       hautMax: Math.max(vues.avant.hautCm, vues.apres.hautCm) } : null;
   return `
   ${navP}
+  <div class="tete-apercus">
+    <span>${duo ? "Fichier client et fichier corrigé" : "Fichier client"}</span>
+    <button id="apGrand">Ouvrir en grand</button>
+  </div>
   <div class="apercus${duo ? " duo" : ""}">
     ${figureApercu(vues.avant, "Fichier client", p, fpAvant, ech, compareDemandeFourni(r, p))}
     ${duo ? figureApercu(vues.apres, "Après correction", p, p.fond_perdu_mm > 0, ech) : ""}
@@ -6919,7 +6983,7 @@ function blocVerifs(r, p) {
         <p class="vq">Est-ce que quelque chose d'important touche ou dépasse les pointillés ?</p>
         <div class="vbtn">
           <button data-vid="bande" data-rep="oui" data-cotes="${cotes.join(",")}">Oui, ça risque d'être coupé</button>
-          <button data-vid="bande" data-rep="non" data-cotes="${cotes.join(",")}">Non, c'est du fond</button>
+          <button data-vid="bande" data-rep="non" data-cotes="${cotes.join(",")}">Non, c'est convenable</button>
         </div>
       </div></div>`;
   }
@@ -6964,7 +7028,7 @@ function blocVerifs(r, p) {
       <p class="vq">Est-ce que quelque chose d'important touche ou dépasse les pointillés${ap.length > 1 ? ", sur l'un des côtés" : ""} ?</p>
       <div class="vbtn">
         <button data-vid="bande" data-rep="oui">Oui, ça risque d'être coupé</button>
-        <button data-vid="bande" data-rep="non">Non, c'est du fond</button>
+        <button data-vid="bande" data-rep="non">Non, c'est convenable</button>
       </div>
     </div>
   </div>`;
@@ -7032,7 +7096,7 @@ function brancherVerifs(r, p, nomFichier, corrige) {
 /* -------------------------------------------------------------------- */
 /* Jusqu'ici les deux reponses laissaient exactement le meme ecran : on  */
 /* demandait a l'operateur de trancher, et on ignorait sa reponse.       */
-/*  - « c'est du fond » : la mesure s'est alarmee pour rien, le constat  */
+/*  - « c'est convenable » : la mesure s'est alarmee pour rien, le       */
 /*    passe au vert et porte la trace de qui a tranche et quand.         */
 /*  - « ca risque d'etre coupe » : le risque est confirme, le constat    */
 /*    reste orange et alimente les reserves du bon a tirer.              */
@@ -7064,7 +7128,7 @@ function appliquerVerifs(r) {
     if (c.orig === undefined) c.orig = [c[0], c[1], c[2]];
     if (rep === "non") {
       c[0] = "VERT";
-      c[1] = `Le bord du visuel a été vérifié à l'écran : c'est du fond, rien d'important n'arrive `
+      c[1] = `Le bord du visuel a été vérifié à l'écran : c'est convenable, rien d'important n'arrive `
            + `au bord. Contrôlé par l'opérateur le ${heure}.`;
       c[2] = `La mesure automatique avait signalé ce point ; la vérification visuelle l'a levé.`;
     } else if (rep === "oui") {
@@ -7419,13 +7483,16 @@ function ecranAttente(p) {
   const cible = c ? `${c.larg} × ${c.haut} cm` : "format libre";
   $("zone").innerHTML = `
     <div class="attente">
+      <div class="attente-quoi">
+        <b>${dernierNom || "fichier déposé"}</b>
+        <span>${p.produit} · ${cible}${c && c.permute ? " · pivoté selon l'orientation commandée" : ""}</span>
+      </div>
       <div class="attente-tete">
-        <button id="lancerAnalyse" class="cta-analyse">${ico(ICO.autre)}Analyser le fichier</button>
-        <div class="attente-quoi">
-          <b>${dernierNom || "fichier déposé"}</b>
-          <span>${p.produit} · ${cible}${c && c.permute ? " · pivoté selon l'orientation commandée" : ""}</span>
-        </div>
-        <button id="autre2" class="lien-autre">Contrôler un autre fichier</button>
+        <button id="lancerAnalyse" class="cta-analyse">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6"/></svg>Analyser le fichier</button>
+        <button id="autre2" class="cta-secondaire">Contrôler un autre fichier</button>
       </div>
       <p class="attente-aide">Le fichier est affiché tel qu'il a été reçu. Rien n'a été
       recadré, redimensionné ni recentré. Vérifiez le produit et les dimensions à droite,
