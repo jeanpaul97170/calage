@@ -626,6 +626,15 @@ table.grille td.txt input{font-family:var(--police-titre)}
   background-repeat:no-repeat;background-position:right 11px center}
 .attente-prod select:hover{border-color:var(--texteFaible)}
 .attente-fmt{color:var(--texteFaible);font-family:var(--police-donnees);font-size:12.5px}
+.attente-lot{color:var(--texteFaible);font-family:var(--police-donnees);font-size:11px;
+  max-width:70ch;line-height:1.5}
+.loupe-barre{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;z-index:2}
+.loupe-barre button{background:rgba(255,255,255,.94);border:1px solid var(--traitFort);
+  border-radius:var(--r);font-family:var(--police-titre);font-weight:600;font-size:13px;
+  padding:9px 16px;cursor:pointer;color:var(--texte)}
+.loupe-barre .lp-t.on{background:var(--vert);border-color:var(--vert);color:#fff}
+.loupe-barre button:hover{filter:brightness(.96)}
 .attente-quoi b{font-family:var(--police-donnees);font-size:12px;color:var(--texte);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56ch}
 .attente-quoi span{color:var(--texteFaible)}
@@ -686,7 +695,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
   <a id="importCsv">Charger un référentiel à jour</a>
   <input type="file" id="csv" accept=".csv,text/csv" hidden>
 </div>
-<input type="file" id="fichier" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" hidden>
+<input type="file" id="fichier" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple hidden>
 <div id="calques"></div>
 
 <script src="charte.js"></script>
@@ -696,7 +705,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29e";
+const VERSION = "2026-08-29g";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -1076,8 +1085,12 @@ async function zoneSecuriteAuPixel(buffer, refPt, margePt, noPage) {
       const ou = (g2.cote === "haut" || g2.cote === "bas")
         ? `à ${(cmX <= cmL / 2 ? cmX : cmL - cmX).toFixed(0)} cm du coin ${cmX <= cmL / 2 ? "gauche" : "droit"}`
         : `à ${(cmY <= cmH / 2 ? cmY : cmH - cmY).toFixed(0)} cm du coin ${cmY <= cmH / 2 ? "haut" : "bas"}`;
+      /* Largeur PHYSIQUE de la vignette sur le produit fini. Elle permet de
+         reafficher le decoupe a l'echelle 1, seule facon de juger une
+         nettete a l'oeil sans se laisser tromper par le zoom. */
       r.zones.push({ url: c2.toDataURL("image/png"), cote: g2.cote,
-                     libelle: `${LIB[g2.cote]}, ${ou}`, n: g2.n });
+                     libelle: `${LIB[g2.cote]}, ${ou}`, n: g2.n,
+                     mm: lw / k / 72 * 25.4 });
     }
   }
 
@@ -2964,8 +2977,8 @@ async function controler(buffer, p, dims, orientation) {
   if (orig) {
     dire("ORANGE",
       `Le client a envoyé une image de ${orig.pxL} × ${orig.pxH} pixels, soit `
-      + `${(orig.natL || 0).toFixed(1)} × ${(orig.natH || 0).toFixed(1)} cm à la résolution de ce produit — `
-      + `pas un fichier d'impression. Une image ne porte ni dimension, ni trait de `
+      + `${(() => { const d = dimClient(true); return d ? d.cm : "—"; })()} telle qu'elle s'ouvre `
+      + `dans un logiciel — pas un fichier d'impression. Une image ne porte ni trait de `
       + `coupe, ni texte : la marge de coupe et les couleurs ne peuvent pas être vérifiées, et aucun texte ne `
       + `pourra être corrigé.`,
       `C'est la commande qui fixe le format : ${orig.cibleL} × ${orig.cibleH} cm. `
@@ -3698,7 +3711,8 @@ async function genererDoc(r, p, nomFichier, dims, mode) {
     ["Date", new Date().toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })],
   ];
   if (o && o.type === "image")
-    ident.push(["Fichier remis", `${(o.natL||0).toFixed(1)} × ${(o.natH||0).toFixed(1)} cm — ${o.pxL} × ${o.pxH} px`]);
+    ident.push(["Fichier remis", (() => { const d = dimClient();
+      return d ? d.complet : `${o.pxL} × ${o.pxH} px`; })()]);
   else if (vues.avant) ident.push(["Fichier remis", dim(vues.avant)]);
   if (corrige) ident.push(["Fichier corrigé", dim(vues.apres)]);
 
@@ -6223,6 +6237,26 @@ function compareDemandeFourni(r, p) {
   </div>`;
 }
 
+/* ==================================================================== */
+/* LA DIMENSION DU FICHIER CLIENT — UNE SEULE ECRITURE                  */
+/* -------------------------------------------------------------------- */
+/* Trois endroits la disaient autrement : la legende de la vignette, le  */
+/* comparateur avant/apres et le constat. Tous divisaient les pixels par */
+/* le dpi DU PRODUIT, ce qui donnait 9,6 x 13,5 cm la ou Photoshop       */
+/* annonce 40,1 x 56,4. Le client lit Photoshop ; l'outil doit lire      */
+/* comme lui. Un seul calcul, un seul libelle, partout.                  */
+/* ==================================================================== */
+function dimClient(court) {
+  const o = ORIGINE;
+  if (!o || o.type !== "image" || !(o.pxL > 0)) return null;
+  const dx = o.dpiX > 0 ? o.dpiX : 72, dy = o.dpiY > 0 ? o.dpiY : 72;
+  const L = o.pxL / dx * 2.54, H = o.pxH / dy * 2.54;
+  const cm = `${L.toFixed(1)} × ${H.toFixed(1)} cm`;
+  return { L: L, H: H, cm: cm, dpi: Math.round(dx),
+           px: `${o.pxL} × ${o.pxH} px`,
+           complet: court ? cm : `${cm} · ${o.pxL} × ${o.pxH} px à ${Math.round(dx)} dpi` };
+}
+
 function dimAffichee(ap, titre) {
   const o = ORIGINE;
   const estClient = /client|remis/i.test(titre || "");
@@ -6232,11 +6266,8 @@ function dimAffichee(ap, titre) {
      meme chiffre ici, et la discussion n'a plus lieu d'etre.
      Le verdict, lui, ne depend pas de ce chiffre : il porte sur le dpi a la
      taille commandee, affiche dans la pastille Nettete. */
-  if (estClient && o && o.type === "image" && o.pxL > 0) {
-    const dx = o.dpiX > 0 ? o.dpiX : 72, dy = o.dpiY > 0 ? o.dpiY : 72;
-    return `${(o.pxL / dx * 2.54).toFixed(1)} × ${(o.pxH / dy * 2.54).toFixed(1)} cm`
-      + ` <span class="px">${o.pxL} × ${o.pxH} px à ${Math.round(dx)} dpi</span>`;
-  }
+  const dc = estClient ? dimClient() : null;
+  if (dc) return `${dc.cm} <span class="px">${dc.px} à ${dc.dpi} dpi</span>`;
   return `${ap.largCm.toFixed(1)} × ${ap.hautCm.toFixed(1)} cm`;
 }
 
@@ -6438,7 +6469,8 @@ function corpsCompare(id, grand) {
     <input type="range" class="cmp-rg" id="${id}-rg" min="0" max="100" step="0.1" value="${CURSEUR}"
            aria-label="Comparer avant et après">
     <div class="cmp-pieds">
-      <span>Votre fichier initial<br><b>${av.largCm.toFixed(1)} × ${av.hautCm.toFixed(1)} cm</b></span>
+      <span>Votre fichier initial<br><b>${(dimClient(true) || {}).cm
+        || `${av.largCm.toFixed(1)} × ${av.hautCm.toFixed(1)} cm`}</b></span>
       <span class="d">Le fichier après correction<br><b>${ap.largCm.toFixed(1)} × ${ap.hautCm.toFixed(1)} cm</b></span>
     </div>
     <p class="cmp-leg"><i class="lg-r"></i> trait de coupe
@@ -6798,10 +6830,10 @@ function syntheseAxes(r) {
           + "C'est un plafond — la netteté réelle ne peut pas dépasser cette valeur. "
           + "La mesure fine des contours n'a pas abouti sur ce fichier"
           + (m ? " (" + m + ")" : "") + " : vérifier à l'œil sur l'agrandissement.";
-        out[0].vers = "verifNettete";
+        out[0].vers = "verifOeil";
       } else {
         out[0].mot = "à vérifier à l'œil";
-        out[0].vers = "verifNettete";
+        out[0].vers = "verifOeil";
         out[0].sous = (rouge || orange) ? "voir le constat" : "";
         out[0].detail = (m || "mesure non exploitable sur ce fichier")
           + " — juger sur l'agrandissement de l'aperçu.";
@@ -7023,8 +7055,46 @@ function versPagePtDe(p, r) {
 /* opposable en litige. AUCUN APPRENTISSAGE : les seuils ne derivent pas */
 /* tout seuls, ils se modifient dans l'admin, avec une date et un motif. */
 /* ==================================================================== */
+/* Question de nettete, rendue A L'INTERIEUR du panneau unique. */
+function questionNettete(r, p) {
+  if (r.sansRaster) return "";
+  const n = noteNettete(r.nettete, p);
+  if (n && n.mesure) return "";
+  const rep = VERIFS.nettete;
+  const intro = n
+    ? `Le calcul donne <b>${n.utile} dpi à la taille commandée</b>${
+        n.mini ? `, pour un minimum de ${n.mini}` : ""}. C'est un plafond :
+       la mesure fine des contours n'a pas abouti.`
+    : `La mesure automatique de netteté n'a pas abouti sur ce fichier.${
+        p.dpi_mini ? ` Le minimum pour ce produit est de ${p.dpi_mini} dpi.` : ""}`;
+  if (rep) return `
+    <div class="verif tranche">
+      <h3><span class="vpast ${rep.reponse === "flou" ? "vko" : "vok"}"></span>
+        La netteté — ${rep.libelle}
+        <button data-vid="nettete" data-rep="">Revenir dessus</button></h3>
+    </div>`;
+  return `
+    <div class="verif">
+      <h3>La netteté</h3>
+      <p class="vleg">${intro} <b>Cliquer une vignette ci-dessus</b> : elle s'ouvre à la
+        taille d'impression, celle à laquelle le client verra le tirage. Le bouton
+        « Agrandi » permet ensuite d'aller chercher un détail.</p>
+      <p class="vq">Le texte est-il net à la taille d'impression ?</p>
+      <div class="vbtn">
+        <button data-vid="nettete" data-rep="net">Net</button>
+        <button data-vid="nettete" data-rep="limite">Acceptable, à signaler</button>
+        <button data-vid="nettete" data-rep="flou">Flou</button>
+      </div>
+    </div>`;
+}
+
+/* Panneau AUTONOME de nettete : uniquement quand blocVerifs n'a rien
+   affiche, sinon la question serait posee deux fois. */
 function blocVerifNettete(r, p) {
   if (r.sansRaster) return "";                    /* page vectorielle */
+  const zonesLa = (r.bande && ((r.bande.zones && r.bande.zones.length)
+                 || (r.bande.apercus && r.bande.apercus.length) || r.bande.apercu));
+  if (zonesLa) return "";                         /* deja dans blocVerifs */
   const n = noteNettete(r.nettete, p);
   if (n && n.mesure) return "";                   /* mesure fine aboutie */
   /* n peut etre NUL — un PDF n'a pas d'etage 1 arithmetique. La pastille
@@ -7033,7 +7103,8 @@ function blocVerifNettete(r, p) {
     ? r.bande.zonesTexte : [];
   const rep = VERIFS.nettete;
   const vig = zs.length
-    ? `<figure class="zone"><img src="${zs[0].url}" alt="" data-zoom="net">
+    ? `<figure class="zone"><img src="${zs[0].url}" alt="" data-zoom="net"${
+        zs[0].mm ? ` data-mm="${zs[0].mm.toFixed(1)}"` : ""}>
          <figcaption>${zs[0].libelle}</figcaption></figure>`
     : "";
   const corps = `
@@ -7044,16 +7115,17 @@ function blocVerifNettete(r, p) {
          fine des contours n'a pas abouti sur ce fichier.`
       : `La mesure automatique de netteté n'a pas abouti sur ce fichier.${
           p.dpi_mini ? ` Le minimum pour ce produit est de ${p.dpi_mini} dpi.` : ""}`}
-      ${vig ? "<b>Cliquer pour agrandir.</b>" : "Ouvrir l'aperçu en grand pour juger."}</p>`;
-  if (rep) return `<div class="pan verifs" id="verifNettete">
+      ${vig ? "<b>Cliquer sur la vignette : elle s'ouvre à la taille d'impression.</b>"
+            : "Ouvrir l'aperçu en grand pour juger."}</p>`;
+  if (rep) return `<div class="pan verifs" id="verifOeil">
     <div class="tete">Netteté vérifiée à l'œil</div>
     <details class="okrepli"><summary>Vérifié : <b>${rep.libelle}</b>
       <button data-vid="nettete" data-rep="">Revenir dessus</button></summary>
       ${corps}</details></div>`;
-  return `<div class="pan verifs" id="verifNettete">
+  return `<div class="pan verifs" id="verifOeil">
     <div class="tete">Netteté — à vérifier à l'œil</div>
     ${corps}
-    <p class="vq"><b>Le texte est-il net à cet agrandissement ?</b></p>
+    <p class="vq"><b>Le texte est-il net à la taille d'impression ?</b></p>
     <div class="vrep">
       <button data-vid="nettete" data-rep="net">Net</button>
       <button data-vid="nettete" data-rep="limite">Acceptable, à signaler</button>
@@ -7081,7 +7153,7 @@ function blocVerifs(r, p) {
     const corpsZ = `
       <div class="zgrille">${zones.map((z, i) => `
         <figure class="zone">
-          <img src="${z.url}" alt="" data-zoom="z${i}">
+          <img src="${z.url}" alt="" data-zoom="z${i}"${z.mm ? ` data-mm="${z.mm.toFixed(1)}"` : ""}>
           <figcaption>${z.libelle}</figcaption>
         </figure>`).join("")}</div>
       <p class="vleg">Trait rouge : la coupe. Pointillés orange : la limite de sécurité
@@ -7089,13 +7161,14 @@ function blocVerifs(r, p) {
         : "Cet endroit est le seul"} où l'outil a vu du texte ou un filet dans la bande.
         <b>Cliquer pour agrandir.</b></p>`;
     if (rep0) {
-      return `<div class="pan verifs">
+      return `<div class="pan verifs" id="verifOeil">
         <div class="tete">À vérifier à l'œil</div>
-        <details class="okrepli"><summary>Vérifié : <b>${rep0.libelle}</b>
+        <details class="okrepli"><summary>Le bord du visuel — <b>${rep0.libelle}</b>
           <button data-vid="bande" data-rep="">Revenir dessus</button></summary>
-          ${corpsZ}</details></div>`;
+          ${corpsZ}</details>
+        ${questionNettete(r, p)}</div>`;
     }
-    return `<div class="pan verifs">
+    return `<div class="pan verifs" id="verifOeil">
       <div class="tete">À vérifier à l'œil</div>
       <p class="vintro">L'app ne peut pas mesurer ce point toute seule. Elle a repéré
         ${zones.length === 1 ? "l'endroit concerné" : "les " + zones.length + " endroits concernés"} :
@@ -7109,7 +7182,8 @@ function blocVerifs(r, p) {
           <button data-vid="bande" data-rep="oui" data-cotes="${cotes.join(",")}">Oui, ça risque d'être coupé</button>
           <button data-vid="bande" data-rep="non" data-cotes="${cotes.join(",")}">Non, c'est convenable</button>
         </div>
-      </div></div>`;
+      </div>
+      ${questionNettete(r, p)}</div>`;
   }
   const NOM = { haut: "en haut", bas: "en bas", gauche: "à gauche", droite: "à droite" };
   if (VUE_COTE >= ap.length) VUE_COTE = 0;
@@ -7132,8 +7206,9 @@ function blocVerifs(r, p) {
         Tout ce qui dépasse les pointillés vers le rouge risque d'être entamé.
         <b>Cliquer sur l'image pour l'agrandir.</b></p>`;
 
-  if (rep) return `<div class="pan verifs">
+  if (rep) return `<div class="pan verifs" id="verifOeil">
     <div class="tete">À vérifier à l'œil</div>
+    ${questionNettete(r, p)}
     <details class="verif tranche">
       <summary><span class="vpast ${rep.reponse === "oui" ? "vko" : "vok"}"></span>
         ${titre} — ${rep.libelle}
@@ -7142,7 +7217,7 @@ function blocVerifs(r, p) {
     </details>
   </div>`;
 
-  return `<div class="pan verifs">
+  return `<div class="pan verifs" id="verifOeil">
     <div class="tete">À vérifier à l'œil</div>
     <p class="vintro">L'app ne peut pas mesurer ce point toute seule. Regardez l'image et répondez :
       votre réponse est enregistrée, datée, et reprise dans le rapport.</p>
@@ -7155,18 +7230,50 @@ function blocVerifs(r, p) {
         <button data-vid="bande" data-rep="non">Non, c'est convenable</button>
       </div>
     </div>
+    ${questionNettete(r, p)}
   </div>`;
 }
 
 function brancherVerifs(r, p, nomFichier, corrige) {
   /* plein écran pour vérifier à l'œil nu, fermé par clic ou Échap */
+  /* Agrandissement, avec bascule TAILLE D'IMPRESSION.
+     Juger une nettete sur une vignette zoomee n'a aucun sens : tout parait
+     flou. A l'echelle 1, l'operateur voit ce que le client verra. La largeur
+     physique de la vignette est portee par `data-mm`. */
   for (const im of document.querySelectorAll("img[data-zoom]")) {
     im.onclick = () => {
+      const mm = parseFloat(im.dataset.mm || "0");
       const d = document.createElement("div");
       d.className = "loupe";
-      d.innerHTML = `<img src="${im.src}" alt=""><button>Fermer</button>`;
+      d.innerHTML = `<img src="${im.src}" alt="">
+        <div class="loupe-barre">
+          ${mm > 0 ? `<button class="lp-t on" data-mode="reel">Taille d'impression</button>
+                      <button class="lp-t" data-mode="zoom">Agrandi</button>` : ""}
+          <button class="lp-f">Fermer</button>
+        </div>`;
+      const img = d.querySelector("img");
+      /* Ouverture DIRECTE a la taille d'impression : c'est la seule taille a
+         laquelle un jugement de nettete a un sens. « Agrandi » reste a un
+         clic pour aller chercher un detail. */
+      if (mm > 0) {
+        img.style.width = mm + "mm"; img.style.maxWidth = "none";
+        img.style.maxHeight = "none"; img.style.imageRendering = "auto";
+      }
       const fermer = () => { d.remove(); document.onkeydown = null; };
-      d.onclick = fermer;
+      d.onclick = (e) => { if (e.target === d) fermer(); };
+      d.querySelector(".lp-f").onclick = fermer;
+      for (const b of d.querySelectorAll(".lp-t")) b.onclick = (e) => {
+        e.stopPropagation();
+        for (const x of d.querySelectorAll(".lp-t")) x.classList.remove("on");
+        b.classList.add("on");
+        if (b.dataset.mode === "reel") {
+          img.style.width = mm + "mm"; img.style.maxWidth = "none";
+          img.style.maxHeight = "none"; img.style.imageRendering = "auto";
+        } else {
+          img.style.width = ""; img.style.maxWidth = "";
+          img.style.maxHeight = ""; img.style.imageRendering = "";
+        }
+      };
       document.onkeydown = (e) => { if (e.key === "Escape") fermer(); };
       document.body.appendChild(d);
     };
@@ -7306,8 +7413,7 @@ function afficher(r, p, nomFichier, corrige) {
       <button id="copier">${ico(ICO.telech)}Rapport atelier</button>
       <button id="rapClient">${ico(ICO.telech)}Rapport client</button>
       ${r.verdict !== "VERT" ? `<button id="bat">${ico(ICO.bat)}Éditer le bon à tirer</button>` : ""}
-      ${corrige ? `<button id="telecharger" class="cta-vert">${ico(ICO.telech)}Télécharger le fichier corrigé</button>`
-                : `<button id="telecharger">${ico(ICO.telech)}Enregistrer le fichier renommé</button>`}
+      ${corrige ? "" : `<button id="telecharger">${ico(ICO.telech)}Enregistrer le fichier renommé</button>`}
       ${(SOURCE_INIT && source !== SOURCE_INIT)
           ? `<button id="revenir">Revenir au fichier client</button>` : ""}
       <button id="pivoter">Pivoter le fichier 90°</button>
@@ -7348,6 +7454,7 @@ function afficher(r, p, nomFichier, corrige) {
       <span class="etat">${code}</span>
       <span class="quoi"><b>${quoi}</b>${aide}</span>
       <span class="fic mono">${nomFichier}</span>
+      ${corrige ? `<button id="telecharger" class="cta-vert">${ico(ICO.telech)}Télécharger le fichier corrigé</button>` : ""}
       <button id="autre" class="vertplein">${ico(ICO.autre)}Contrôler un autre fichier</button>
     </div>
     ${blocAxes(r)}
@@ -7367,7 +7474,7 @@ function afficher(r, p, nomFichier, corrige) {
       ${lignes}
     </div>
     ${blocVerifs(r, p)}
-    ${blocVerifNettete(r, p)}
+    ${blocVerifNettete(r, p)}   <!-- repli : aucune bande a montrer -->
     ${atelier(r, p, palette)}`;
 
   $("inspection").innerHTML = `
@@ -7609,6 +7716,8 @@ function ecranAttente(p) {
     <div class="attente">
       <div class="attente-quoi">
         <b>${dernierNom || "fichier déposé"}</b>
+        ${LOT_NOMS && LOT_NOMS.length > 1
+          ? `<span class="attente-lot">${LOT_NOMS.length} fichiers assemblés · ${LOT_NOMS.join(" · ")}</span>` : ""}
         <!-- Le produit se change ICI, avant l'analyse. Le rail est loin du
              bouton, et se tromper de produit invalide tout le controle : le
              choix doit etre a portee de regard du fichier. -->
@@ -7650,6 +7759,89 @@ function ecranAttente(p) {
   };
 }
 
+/* ==================================================================== */
+/* PLUSIEURS FICHIERS POUR UNE SEULE COMMANDE                           */
+/* -------------------------------------------------------------------- */
+/* Le comptoir recoit un recto et un verso en deux JPEG, ou huit pages   */
+/* de brochure en huit fichiers. Le moteur sait deja tout faire en       */
+/* multi-page — pagination, imposition en cahier, controle page par page */
+/* — c'est l'ENTREE qui n'acceptait qu'un fichier.                       */
+/* Chaque fichier devient une page, dans l'ordre de selection. Melange   */
+/* PDF / JPEG / PNG accepte : c'est le cas reel du comptoir.             */
+/* Conversion SEQUENTIELLE, jamais en parallele : sur des gros JPEG, huit */
+/* decodages simultanes font tomber l'onglet.                            */
+/* ==================================================================== */
+async function assemblerFichiers(liste, p) {
+  const doc = await PDFLib.PDFDocument.create();
+  const noms = [];
+  for (const f of liste) {
+    noms.push(f.name);
+    const brut = await f.arrayBuffer();
+    if (estImage(f)) {
+      const genre = genreImage(f);
+      const mime = genre === "png" ? "image/png" : "image/jpeg";
+      const dec = await decoderImage(brut, mime, BUDGET_DECODE);
+      const pxL = dec.natW || dec.W, pxH = dec.natH || dec.H;
+      if (pxL * pxH > PX_MAX)
+        throw new Error(` : « ${f.name} » fait ${Math.round(pxL * pxH / 1e6)} Mpx, au-delà de ce qu'un navigateur peut traiter`);
+      /* Meme regle qu'en fichier unique : dimension NATIVE, aucune
+         correction silencieuse au depot. */
+      const nat = tailleNaturelle(pxL, pxH, p);
+      const un = await imageVersPdf(brut, genre, nat.larg, nat.haut);
+      const src = await PDFLib.PDFDocument.load(un);
+      for (const pg of await doc.copyPages(src, src.getPageIndices())) doc.addPage(pg);
+    } else {
+      let src;
+      try { src = await PDFLib.PDFDocument.load(brut, { ignoreEncryption: true }); }
+      catch (e) { throw new Error(` : « ${f.name} » n'est pas un PDF lisible`); }
+      for (const pg of await doc.copyPages(src, src.getPageIndices())) doc.addPage(pg);
+    }
+    await souffler();          /* la barre de progression respire */
+  }
+  if (!doc.getPageCount()) throw new Error(" : aucun contenu exploitable dans ces fichiers");
+  return { octets: (await doc.save()).buffer, noms: noms, pages: doc.getPageCount() };
+}
+
+/* Point d'entree unique. Un seul fichier suit le chemin d'origine ; a
+   partir de deux, on assemble d'abord puis on repart sur ce chemin. */
+async function traiterLot(liste) {
+  const fs = [...liste].filter(Boolean);
+  if (!fs.length) return;
+  if (fs.length === 1) return traiter(fs[0]);
+
+  const p = produitCourant();
+  const max = plafondPages(p);
+  if (max && fs.length > max) {
+    alert(`${p.produit} accepte au plus ${max} page${max > 1 ? "s" : ""}.\n`
+        + `${fs.length} fichiers ont été déposés.`);
+    return;
+  }
+  try {
+    if (!pret) { alert("Le moteur n'est pas encore prêt, réessayez dans un instant."); return; }
+    PROG_ON = true; progres(8, `assemblage de ${fs.length} fichiers`);
+    const lot = await assemblerFichiers(fs, p);
+    const nom = fs[0].name.replace(/\.[^.]+$/, "") + `-et-${fs.length - 1}-autre${fs.length > 2 ? "s" : ""}.pdf`;
+    LOT_NOMS = lot.noms;
+    ASSEMBLAGE_EN_COURS = true;
+    await traiter(new File([lot.octets], nom, { type: "application/pdf" }));
+  } catch (e) {
+    PROG_ON = false;
+    LOT_NOMS = null;
+    alert("Ces fichiers n'ont pas pu être assemblés" + (e.message || "") + ".");
+  }
+}
+
+/* Plafond de pages porte par le produit, jamais code en dur. */
+function plafondPages(p) {
+  if (!p) return 0;
+  if (p.pages === "RECTO") return 1;
+  if (p.pages === "RV_LIBRE" || p.pages === "RV_OBLIGATOIRE") return 2;
+  return 0;                    /* MULTIPLE4 et le reste : pas de plafond */
+}
+
+let LOT_NOMS = null;
+let ASSEMBLAGE_EN_COURS = false;
+
 async function traiter(f) {
   const p = produitCourant();
   if (!p || !pret) return;
@@ -7663,6 +7855,10 @@ async function traiter(f) {
   try {
     if (f) {
       ANALYSE_DEMANDEE = false;
+      /* Un depot direct efface la trace d'un lot precedent : le bandeau ne
+         doit jamais annoncer des fichiers qui ne sont plus la. */
+      if (!ASSEMBLAGE_EN_COURS) LOT_NOMS = null;
+      ASSEMBLAGE_EN_COURS = false;
       ouvrirLigne(f.name);
       const brut = await f.arrayBuffer();
       if (estImage(f)) {
@@ -7794,7 +7990,7 @@ function brancherDepot() {
   d.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fichier").click(); } };
   ["dragenter","dragover"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add("survol"); }));
   ["dragleave","drop"].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove("survol"); }));
-  d.addEventListener("drop", e => { if (e.dataTransfer.files[0]) traiter(e.dataTransfer.files[0]); });
+  d.addEventListener("drop", e => { if (e.dataTransfer.files.length) traiterLot(e.dataTransfer.files); });
 }
 
 /* Import d'un referentiel mis a jour, depuis le pied de page.
@@ -7845,7 +8041,7 @@ $("csv").onchange = async (e) => {
 };
 
 $("produit").onchange = () => { produitChange = true; majRail(); majFiche(); relancer(); };
-$("fichier").onchange = (e) => { if (e.target.files[0]) traiter(e.target.files[0]); };
+$("fichier").onchange = (e) => { if (e.target.files.length) traiterLot(e.target.files); };
 
 /* charte graphique : une seule source, le fichier charte.js */
 function appliquerCharte() {
