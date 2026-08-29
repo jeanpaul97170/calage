@@ -575,6 +575,18 @@ table.grille td.txt input{font-family:var(--police-titre)}
   border-radius:var(--r);font-family:var(--police-titre);font-weight:600;font-size:12.5px;
   letter-spacing:0;text-transform:none;color:var(--texte);padding:7px 14px;cursor:pointer}
 .tete-apercus button:hover{background:var(--fond)}
+/* Le fichier corrige est le livrable : il se distingue des exports annexes. */
+.actions .cta-vert,.cta-vert{background:var(--vert);color:#fff;border:0;
+  border-radius:var(--r);font-family:var(--police-titre);font-weight:700;
+  font-size:13px;padding:9px 16px;cursor:pointer;display:inline-flex;
+  align-items:center;gap:7px}
+.actions .cta-vert:hover,.cta-vert:hover{filter:brightness(1.08)}
+.actions .cta-vert svg,.cta-vert svg{stroke:#fff}
+.axe-cliq{cursor:pointer;text-align:left;width:100%;font:inherit}
+.axe-cliq:hover{background:rgba(0,0,0,.03)}
+.ax-go{display:block;margin-top:5px;font-size:11.5px;font-weight:700;
+  color:var(--marque);font-family:var(--police-titre)}
+.surligne{outline:2px solid var(--marque);outline-offset:3px;transition:outline-color .4s}
 .pe-seul{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
 .pe-seul .cadre{max-width:100%;max-height:78vh;display:flex;justify-content:center}
 .pe-seul img{max-width:100%;max-height:78vh;object-fit:contain}
@@ -603,7 +615,17 @@ table.grille td.txt input{font-family:var(--police-titre)}
   font-family:var(--police-titre);font-weight:600;font-size:13.5px;
   padding:12px 20px;cursor:pointer}
 .cta-secondaire:hover{background:var(--fond)}
-.attente-quoi{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12.5px}
+.attente-quoi{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12.5px}
+.attente-prod{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap}
+.attente-prod label{color:var(--texteFaible);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase}
+.attente-prod select{background:var(--panneau);border:1px solid var(--traitFort);
+  border-radius:var(--r);padding:8px 30px 8px 11px;font-family:var(--police-donnees);
+  font-size:13.5px;color:var(--texte);cursor:pointer;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'><path d='M1 1l4.5 4.5L10 1' fill='none' stroke='%236B6B6B' stroke-width='1.6' stroke-linecap='round'/></svg>");
+  background-repeat:no-repeat;background-position:right 11px center}
+.attente-prod select:hover{border-color:var(--texteFaible)}
+.attente-fmt{color:var(--texteFaible);font-family:var(--police-donnees);font-size:12.5px}
 .attente-quoi b{font-family:var(--police-donnees);font-size:12px;color:var(--texte);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56ch}
 .attente-quoi span{color:var(--texteFaible)}
@@ -674,7 +696,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29c";
+const VERSION = "2026-08-29e";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -1285,6 +1307,81 @@ function dimsEnTete(octets, genre) {
     if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
       const H = (u[i+5] << 8) | u[i+6], W = (u[i+7] << 8) | u[i+8];
       return (W > 0 && H > 0) ? { W: W, H: H } : null;
+    }
+    if (!(lg > 0)) break;
+    i += 2 + lg;
+  }
+  return null;
+}
+
+/* Resolution DECLAREE dans le fichier — le tag que Photoshop affiche.
+   -------------------------------------------------------------------
+   Ce tag ne dit rien de la qualite : Canva, Gemini et les captures ecran
+   ecrivent presque toujours 72. Mais c'est ce que le client voit quand il
+   ouvre son fichier, et lui opposer un autre chiffre au comptoir declenche
+   la discussion que l'outil est cense supprimer. On affiche donc SA
+   dimension ; le verdict, lui, porte sur le dpi a la taille commandee.
+   JPEG : APP0/JFIF (unites + densites), puis EXIF XResolution.
+   PNG  : chunk pHYs, en pixels par metre. */
+function dpiEnTete(octets, genre) {
+  const u = new Uint8Array(octets);
+  const u32 = (o) => ((u[o] << 24 | u[o+1] << 16 | u[o+2] << 8 | u[o+3]) >>> 0);
+
+  if (genre === "png") {
+    let i = 8;
+    while (i + 12 <= u.length) {
+      const lg = u32(i), typ = String.fromCharCode(u[i+4], u[i+5], u[i+6], u[i+7]);
+      if (typ === "pHYs") {
+        const x = u32(i + 8), y = u32(i + 12), unite = u[i + 16];
+        if (unite === 1 && x > 0 && y > 0) return { x: x * 0.0254, y: y * 0.0254 };
+        return null;
+      }
+      if (typ === "IDAT" || typ === "IEND") return null;
+      i += 12 + lg;
+    }
+    return null;
+  }
+
+  let i = 2;
+  while (i < u.length - 8) {
+    if (u[i] !== 0xFF) { i++; continue; }
+    const m = u[i+1];
+    if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+    if (m === 0xDA || m === 0xD9) break;
+    const lg = (u[i+2] << 8) | u[i+3];
+
+    if (m === 0xE0 && lg >= 14
+        && String.fromCharCode(u[i+4], u[i+5], u[i+6], u[i+7]) === "JFIF") {
+      const unite = u[i+11];
+      const dx = (u[i+12] << 8) | u[i+13], dy = (u[i+14] << 8) | u[i+15];
+      if (dx > 0 && dy > 0) {
+        if (unite === 1) return { x: dx, y: dy };
+        if (unite === 2) return { x: dx * 2.54, y: dy * 2.54 };
+      }
+    }
+
+    if (m === 0xE1 && lg > 16
+        && String.fromCharCode(u[i+4], u[i+5], u[i+6], u[i+7]) === "Exif") {
+      const t = i + 10;
+      const gros = u[t] === 0x4D;
+      const r16 = (o) => gros ? ((u[o] << 8) | u[o+1]) : ((u[o+1] << 8) | u[o]);
+      const r32 = (o) => gros ? u32(o)
+                              : (((u[o+3] << 24 | u[o+2] << 16 | u[o+1] << 8 | u[o]) >>> 0));
+      try {
+        const ifd = t + r32(t + 4), n = r16(ifd);
+        let xr = 0, yr = 0, unite = 2;
+        for (let k = 0; k < n; k++) {
+          const e = ifd + 2 + k * 12, tag = r16(e);
+          if (tag === 0x011A || tag === 0x011B) {
+            const o = t + r32(e + 8), num = r32(o), den = r32(o + 4);
+            if (den > 0) { if (tag === 0x011A) xr = num / den; else yr = num / den; }
+          } else if (tag === 0x0128) unite = r16(e + 8);
+        }
+        if (xr > 0) {
+          const k = (unite === 3) ? 2.54 : 1;
+          return { x: xr * k, y: (yr > 0 ? yr : xr) * k };
+        }
+      } catch (e) { /* EXIF illisible : on retombe sur le defaut */ }
     }
     if (!(lg > 0)) break;
     i += 2 + lg;
@@ -6129,8 +6226,17 @@ function compareDemandeFourni(r, p) {
 function dimAffichee(ap, titre) {
   const o = ORIGINE;
   const estClient = /client|remis/i.test(titre || "");
-  /* Sur un fichier IMAGE : aucune dimension du fourni, voir compareDemandeFourni. */
-  if (estClient && o && o.type === "image") return "";
+  /* Sur une IMAGE, on affiche la dimension TELLE QUE LE CLIENT LA VOIT :
+     pixels divises par le dpi declare dans le fichier — exactement le calcul
+     de Photoshop. Le client qui annonce « mon fichier fait 40 cm » lit le
+     meme chiffre ici, et la discussion n'a plus lieu d'etre.
+     Le verdict, lui, ne depend pas de ce chiffre : il porte sur le dpi a la
+     taille commandee, affiche dans la pastille Nettete. */
+  if (estClient && o && o.type === "image" && o.pxL > 0) {
+    const dx = o.dpiX > 0 ? o.dpiX : 72, dy = o.dpiY > 0 ? o.dpiY : 72;
+    return `${(o.pxL / dx * 2.54).toFixed(1)} × ${(o.pxH / dy * 2.54).toFixed(1)} cm`
+      + ` <span class="px">${o.pxL} × ${o.pxH} px à ${Math.round(dx)} dpi</span>`;
+  }
   return `${ap.largCm.toFixed(1)} × ${ap.hautCm.toFixed(1)} cm`;
 }
 
@@ -6476,6 +6582,13 @@ function ouvrirCompare(p) {
 function brancherCompare(r, p) {
   brancherUnCompare("cmp");
   if ($("cmpGrand")) $("cmpGrand").onclick = () => ouvrirCompare(p);
+  for (const b of document.querySelectorAll("[data-vers]")) b.onclick = () => {
+    const c = $(b.dataset.vers);
+    if (!c) return;
+    c.scrollIntoView({ behavior: "smooth", block: "center" });
+    c.classList.add("surligne");
+    setTimeout(() => c.classList.remove("surligne"), 1600);
+  };
   if ($("apGrand")) $("apGrand").onclick = () =>
     (vues.apres ? ouvrirCompare(p) : ouvrirApercuSeul(p));
 }
@@ -6685,8 +6798,10 @@ function syntheseAxes(r) {
           + "C'est un plafond — la netteté réelle ne peut pas dépasser cette valeur. "
           + "La mesure fine des contours n'a pas abouti sur ce fichier"
           + (m ? " (" + m + ")" : "") + " : vérifier à l'œil sur l'agrandissement.";
+        out[0].vers = "verifNettete";
       } else {
         out[0].mot = "à vérifier à l'œil";
+        out[0].vers = "verifNettete";
         out[0].sous = (rouge || orange) ? "voir le constat" : "";
         out[0].detail = (m || "mesure non exploitable sur ce fichier")
           + " — juger sur l'agrandissement de l'aperçu.";
@@ -6707,13 +6822,17 @@ function blocAxes(r) {
       ${b.mini ? `<u style="left:33%" title="minimum ${b.mini} dpi"></u>` : ""}
       ${b.cible ? `<u class="c" style="left:67%" title="cible ${b.cible} dpi"></u>` : ""}
     </span>` : "";
+    /* Une pastille qui dit « à vérifier à l'œil » doit mener quelque part :
+       elle devient un bouton qui amène au bloc de vérification. */
+    const bal = a.vers ? "button" : "div", att = a.vers ? ` type="button" data-vers="${a.vers}"` : "";
     return `
-    <div class="axe n-${a.niveau}" ${a.detail ? `title="${a.detail.replace(/"/g, "'")}"` : ""}>
+    <${bal} class="axe n-${a.niveau}${a.vers ? " axe-cliq" : ""}"${att} ${a.detail ? `title="${a.detail.replace(/"/g, "'")}"` : ""}>
       <span class="ax-t">${a.titre}</span>
       <span class="ax-v">${a.mot}${a.sous ? ` <b class="ax-s">· ${a.sous}</b>` : ""}</span>
       ${jauge}
       ${a.cause ? `<span class="ax-c">${a.cause}</span>` : ""}
-    </div>`;
+      ${a.vers ? `<span class="ax-go">Vérifier à l'œil →</span>` : ""}
+    </${bal}>`;
   }).join("")}</div>`;
 }
 
@@ -6907,7 +7026,9 @@ function versPagePtDe(p, r) {
 function blocVerifNettete(r, p) {
   if (r.sansRaster) return "";                    /* page vectorielle */
   const n = noteNettete(r.nettete, p);
-  if (!n || n.mesure) return "";                  /* mesure fine aboutie */
+  if (n && n.mesure) return "";                   /* mesure fine aboutie */
+  /* n peut etre NUL — un PDF n'a pas d'etage 1 arithmetique. La pastille
+     disait alors « a verifier a l'oeil » sans rien proposer au clic. */
   const zs = (r.bande && r.bande.zonesTexte && r.bande.zonesTexte.length)
     ? r.bande.zonesTexte : [];
   const rep = VERIFS.nettete;
@@ -6917,17 +7038,20 @@ function blocVerifNettete(r, p) {
     : "";
   const corps = `
     ${vig}
-    <p class="vleg">Le calcul donne <b>${n.utile} dpi à la taille commandée</b>${
-      n.mini ? `, pour un minimum de ${n.mini}` : ""}. C'est un plafond : la mesure
-      fine des contours n'a pas abouti sur ce fichier.
-      ${vig ? "<b>Cliquer pour agrandir.</b>" : "Juger sur l'aperçu agrandi."}</p>`;
-  if (rep) return `<div class="pan verifs">
+    <p class="vleg">${n
+      ? `Le calcul donne <b>${n.utile} dpi à la taille commandée</b>${
+          n.mini ? `, pour un minimum de ${n.mini}` : ""}. C'est un plafond : la mesure
+         fine des contours n'a pas abouti sur ce fichier.`
+      : `La mesure automatique de netteté n'a pas abouti sur ce fichier.${
+          p.dpi_mini ? ` Le minimum pour ce produit est de ${p.dpi_mini} dpi.` : ""}`}
+      ${vig ? "<b>Cliquer pour agrandir.</b>" : "Ouvrir l'aperçu en grand pour juger."}</p>`;
+  if (rep) return `<div class="pan verifs" id="verifNettete">
     <div class="tete">Netteté vérifiée à l'œil</div>
     <details class="okrepli"><summary>Vérifié : <b>${rep.libelle}</b>
       <button data-vid="nettete" data-rep="">Revenir dessus</button></summary>
       ${corps}</details></div>`;
-  return `<div class="pan verifs">
-    <div class="tete">À vérifier à l'œil</div>
+  return `<div class="pan verifs" id="verifNettete">
+    <div class="tete">Netteté — à vérifier à l'œil</div>
     ${corps}
     <p class="vq"><b>Le texte est-il net à cet agrandissement ?</b></p>
     <div class="vrep">
@@ -7182,7 +7306,7 @@ function afficher(r, p, nomFichier, corrige) {
       <button id="copier">${ico(ICO.telech)}Rapport atelier</button>
       <button id="rapClient">${ico(ICO.telech)}Rapport client</button>
       ${r.verdict !== "VERT" ? `<button id="bat">${ico(ICO.bat)}Éditer le bon à tirer</button>` : ""}
-      ${corrige ? `<button id="telecharger">${ico(ICO.telech)}Télécharger le fichier corrigé</button>`
+      ${corrige ? `<button id="telecharger" class="cta-vert">${ico(ICO.telech)}Télécharger le fichier corrigé</button>`
                 : `<button id="telecharger">${ico(ICO.telech)}Enregistrer le fichier renommé</button>`}
       ${(SOURCE_INIT && source !== SOURCE_INIT)
           ? `<button id="revenir">Revenir au fichier client</button>` : ""}
@@ -7485,7 +7609,20 @@ function ecranAttente(p) {
     <div class="attente">
       <div class="attente-quoi">
         <b>${dernierNom || "fichier déposé"}</b>
-        <span>${p.produit} · ${cible}${c && c.permute ? " · pivoté selon l'orientation commandée" : ""}</span>
+        <!-- Le produit se change ICI, avant l'analyse. Le rail est loin du
+             bouton, et se tromper de produit invalide tout le controle : le
+             choix doit etre a portee de regard du fichier. -->
+        <div class="attente-prod">
+          <label for="prodAttente">Produit commandé</label>
+          <select id="prodAttente">
+            ${["IMPRIMERIE", "SIGNALETIQUE"].map((fam) => `
+              <optgroup label="${fam}">
+                ${REF.filter((x) => x.famille === fam).map((x) => `
+                  <option value="${x.code}"${x.code === p.code ? " selected" : ""}>${x.produit}</option>`).join("")}
+              </optgroup>`).join("")}
+          </select>
+          <span class="attente-fmt">${cible}${c && c.permute ? " · pivoté selon l'orientation commandée" : ""}</span>
+        </div>
       </div>
       <div class="attente-tete">
         <button id="lancerAnalyse" class="cta-analyse">
@@ -7504,6 +7641,13 @@ function ecranAttente(p) {
   $("inspection").innerHTML = "";
   $("lancerAnalyse").onclick = () => { ANALYSE_DEMANDEE = true; traiter(null); };
   $("autre2").onclick = reinit;
+  /* Le meme chemin que le rail : on ecrit dans le select maitre et on
+     declenche son onchange, pour ne pas dupliquer la logique de changement
+     de produit — image reconvertie, reperes redessines, analyse invalidee. */
+  if ($("prodAttente")) $("prodAttente").onchange = (e) => {
+    $("produit").value = e.target.value;
+    $("produit").dispatchEvent(new Event("change"));
+  };
 }
 
 async function traiter(f) {
@@ -7553,7 +7697,12 @@ async function traiter(f) {
           gr = grisDeBitmap(dec.bmp, dec.W, dec.H, NETTETE.budgetPx);
         }
         const prof = sondeProfil(brut, genre);
+        /* 72 dpi par defaut : c'est ce que fait Photoshop quand le fichier
+           ne declare rien. L'operateur doit lire le meme chiffre que le client. */
+        const dres = dpiEnTete(brut, genre);
         ORIGINE = { type: "image", nom: f.name, genre: genre, pxL: pxL, pxH: pxH,
+                    dpiX: dres ? dres.x : 72, dpiY: dres ? dres.y : 72,
+                    dpiDeclare: !!dres,
                     natL: nat.larg, natH: nat.haut, brut: brut,
                     icc: prof.icc, cmjn: prof.cmjn, gris: gr.g, W: gr.W, H: gr.H,
                     recadre: gr.recadre, vues: gr.vues || null, reduit: !!dec.reduit,
