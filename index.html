@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29i";
+const VERSION = "2026-08-29j";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -7458,7 +7458,7 @@ function afficher(r, p, nomFichier, corrige) {
       <button id="copier">${ico(ICO.telech)}Rapport atelier</button>
       <button id="rapClient">${ico(ICO.telech)}Rapport client</button>
       ${r.verdict !== "VERT" ? `<button id="bat">${ico(ICO.bat)}Éditer le bon à tirer</button>` : ""}
-      ${corrige ? "" : `<button id="telecharger">${ico(ICO.telech)}Enregistrer le fichier renommé</button>`}
+
       ${(SOURCE_INIT && source !== SOURCE_INIT)
           ? `<button id="revenir">Revenir au fichier client</button>` : ""}
       <button id="pivoter">Pivoter le fichier 90°</button>
@@ -7499,8 +7499,14 @@ function afficher(r, p, nomFichier, corrige) {
       <span class="etat">${code}</span>
       <span class="quoi"><b>${quoi}</b>${aide}</span>
       <span class="fic mono">${nomFichier}</span>
-      ${corrige ? `<button id="telecharger" class="vertplein premier">${ico(ICO.telech)}Télécharger le fichier corrigé</button>` : ""}
-      <button id="autre" class="${corrige ? "bandeau-2" : "vertplein"}">${ico(ICO.autre)}Contrôler un autre fichier</button>
+      <!-- Un fichier conforme se telecharge AUSSI : il est renomme
+           CODE-MONTANT-NOM, et c'est ce nom qui fait la jonction entre
+           l'email, le RIP et la facture. Le reserver aux fichiers corriges
+           cassait la chaine sur le cas le plus frequent — celui ou tout
+           va bien. -->
+      <button id="telecharger" class="vertplein premier">${ico(ICO.telech)}${
+        corrige ? "Télécharger le fichier corrigé" : "Télécharger le fichier renommé"}</button>
+      <button id="autre" class="bandeau-2">${ico(ICO.autre)}Contrôler un autre fichier</button>
     </div>
     ${blocAxes(r)}
     ${outils}
