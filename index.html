@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Contrôle fichier · Imprimerie de Jarry</title>
+<title>Calage · Imprimerie de Jarry</title>
 <meta name="theme-color" content="#12151B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -444,13 +446,20 @@ dl.fiche>*:nth-last-child(-n+2){border-bottom:0}
 
 /* ---------- devis ---------- */
 .devis .corps{padding:12px 14px}
-.qte{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.qte select{background:#fff;border:1px solid var(--trait);border-radius:var(--r);padding:7px 26px 7px 8px;
+/* Quatre elements sur une seule ligne dans un panneau etroit : le menu se
+   tronquait en « autr », le libelle « quantites vendues » passait a la
+   ligne et recouvrait la suite. Le libelle prend sa propre ligne, les
+   commandes gardent leur largeur. */
+.qte{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.qte label{flex:1 0 100%;margin-bottom:1px}
+.qte .mnt{margin-left:auto;white-space:nowrap}
+.qte select{min-width:104px;flex:0 0 auto;
+  background:#fff;border:1px solid var(--trait);border-radius:var(--r);padding:7px 26px 7px 8px;
   font-family:var(--police-donnees);font-size:14px;color:var(--texte);appearance:none;-webkit-appearance:none;
   background-image:linear-gradient(45deg,transparent 50%,var(--texteFaible) 50%),
                    linear-gradient(135deg,var(--texteFaible) 50%,transparent 50%);
   background-position:calc(100% - 14px) 54%,calc(100% - 9px) 54%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-.qte input{width:88px;background:#fff;border:1px solid var(--trait);border-radius:var(--r);
+.qte input{width:80px;flex:0 0 auto;background:#fff;border:1px solid var(--trait);border-radius:var(--r);
   padding:7px 8px;font-family:var(--police-donnees);font-size:14px;text-align:right;color:var(--texte)}
 .qte label{font-size:12px;color:var(--texteFaible)}
 .fin{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px}
@@ -559,6 +568,33 @@ table.grille td.txt input{font-family:var(--police-titre)}
 .apercus figcaption{margin-top:8px;font-family:var(--police-donnees);font-size:10.5px;
   letter-spacing:.05em;color:var(--texteFaible);text-transform:uppercase}
 .apercus figcaption b{color:var(--texte);font-weight:600}
+.cmpdf{margin-top:9px;border-top:1px solid var(--trait);padding-top:8px;
+  font-family:var(--police-donnees);font-size:10.5px;line-height:1.45}
+.cmpdf-tete,.cmpdf-l{display:grid;grid-template-columns:74px 1fr 1fr;gap:8px;align-items:baseline}
+.cmpdf-tete{color:var(--texteFaible);letter-spacing:.08em;font-size:9.5px;
+  padding-bottom:4px;border-bottom:1px solid var(--trait);margin-bottom:5px}
+.cmpdf-l{padding:2.5px 0}
+.cmpdf-t{color:var(--texteFaible)}
+.cmpdf-d{color:var(--texte)}
+.cmpdf-f.ok{color:var(--vert)}
+.cmpdf-f.ecart{color:var(--orange)}
+.attente{padding:16px 0 4px}
+.attente-tete{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.cta-analyse{background:var(--marque);color:#fff;border:0;border-radius:var(--r);
+  font-family:var(--police-titre);font-weight:700;font-size:14px;letter-spacing:.02em;
+  padding:12px 24px;cursor:pointer;display:inline-flex;align-items:center;gap:9px}
+.cta-analyse:hover{filter:brightness(.93)}
+.attente-quoi{display:flex;flex-direction:column;gap:2px;font-size:12px;min-width:0}
+.attente-quoi b{font-family:var(--police-donnees);font-size:11.5px;color:var(--texte);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46ch}
+.attente-quoi span{color:var(--texteFaible)}
+.lien-autre{margin-left:auto;background:none;border:0;color:var(--marque);
+  font-family:var(--police-titre);font-size:12.5px;font-weight:600;
+  text-decoration:underline;cursor:pointer}
+.attente-aide{max-width:74ch;font-size:12.5px;line-height:1.55;color:var(--texteFaible);
+  margin:0 0 14px}
+.opt .sansobjet{display:block;margin-top:3px;font-style:normal;
+  color:var(--texteFaible);opacity:.85}
 .leg{padding:10px 0 0;font-size:11px;color:var(--texteFaible);display:flex;gap:12px;flex-wrap:wrap}
 .plan{padding:12px 14px}
 .plan svg{display:block;width:100%;height:auto;max-height:170px}
@@ -622,7 +658,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-26aj";
+const VERSION = "2026-08-29a";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -827,6 +863,16 @@ function reinitVerifs() { VERIFS = {}; }
 /* Banc : texte 33 blocs, filet 4, photo contrastee 0, degrade 0.        */
 /* ==================================================================== */
 const BANDE = { ecartMin: 10, contourMin: 0.05, niveauxMax: 24, minPx: 12, budgetPx: 2500000 };
+
+/* Plafonds de decodage.
+   BUDGET_DECODE : au-dela, l'image est decodee EN REDUIT pour l'affichage
+   et la geometrie. 40 Mpx couvrent largement le plus gros produit du
+   referentiel. Le fichier livre au RIP reste l'original, jamais
+   reechantillonne : cette reduction ne sert qu'a regarder et a mesurer.
+   PX_MAX : au-dela, aucun navigateur ne tient. On le dit au lieu de
+   planter au troisieme changement de produit. */
+const BUDGET_DECODE = 40000000;
+const PX_MAX = 400000000;
 
 function analyserBande(g, W, H, x0, y0, x1, y1, bandePx, S) {
   const T = Math.max(10, Math.min(32, Math.round(bandePx * 0.55)));
@@ -1197,11 +1243,80 @@ function sondeProfil(octets, genre) {
   return res;
 }
 
-async function decoderImage(octets, mime) {
+/* Dimensions lues dans l'EN-TETE, sans decoder un seul pixel.
+   Un JPEG de 66 Mo porte environ 250 Mpx : le decoder pour connaitre sa
+   taille materialise 1 Go en memoire et tue l'onglet. Le marqueur SOF du
+   JPEG et le chunk IHDR du PNG donnent la reponse en quelques octets. */
+function dimsEnTete(octets, genre) {
+  const u = new Uint8Array(octets);
+  if (genre === "png") {
+    /* signature 8 o, longueur 4 o, type 4 o, puis largeur et hauteur en
+       32 bits gros-boutiste. IHDR est toujours le premier chunk. */
+    if (u.length < 24) return null;
+    if (String.fromCharCode(u[12], u[13], u[14], u[15]) !== "IHDR") return null;
+    const lire = (o) => ((u[o] << 24 | u[o+1] << 16 | u[o+2] << 8 | u[o+3]) >>> 0);
+    const W = lire(16), H = lire(20);
+    return (W > 0 && H > 0) ? { W: W, H: H } : null;
+  }
+  let i = 2;
+  while (i < u.length - 8) {
+    if (u[i] !== 0xFF) { i++; continue; }
+    const m = u[i+1];
+    if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+    if (m === 0xDA || m === 0xD9) break;
+    const lg = (u[i+2] << 8) | u[i+3];
+    /* SOF0 a SOF15, hors DHT (C4), JPG (C8) et DAC (CC) qui partagent la plage */
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) {
+      const H = (u[i+5] << 8) | u[i+6], W = (u[i+7] << 8) | u[i+8];
+      return (W > 0 && H > 0) ? { W: W, H: H } : null;
+    }
+    if (!(lg > 0)) break;
+    i += 2 + lg;
+  }
+  return null;
+}
+
+/* Cache du bitmap decode. Sans lui, chaque changement de produit redecode
+   le fichier de zero : sur un gros JPEG c'est plusieurs secondes a chaque
+   fois, et la memoire non liberee finit par faire tomber l'onglet. */
+let BMP_CACHE = { buf: null, max: 0, res: null };
+function viderCacheBmp() {
+  if (BMP_CACHE.res && BMP_CACHE.res.bmp && BMP_CACHE.res.bmp.close) {
+    try { BMP_CACHE.res.bmp.close(); } catch (e) {}
+  }
+  BMP_CACHE = { buf: null, max: 0, res: null };
+}
+
+/* maxPx : nombre de pixels au-dela duquel on decode en reduit.
+   createImageBitmap avec resizeWidth decode DIRECTEMENT a la taille voulue,
+   sans jamais materialiser l'image pleine. C'est ce qui evite le plantage.
+   natW / natH restent les pixels REELS du client : toute la resolution
+   annoncee en depend, elle ne doit jamais venir du bitmap reduit. */
+async function decoderImage(octets, mime, maxPx) {
+  const genre = (mime === "image/png") ? "png" : "jpg";
+  if (maxPx > 0 && BMP_CACHE.buf === octets && BMP_CACHE.max === maxPx && BMP_CACHE.res)
+    return BMP_CACHE.res;
+
   const blob = new Blob([octets], { type: mime || "image/jpeg" });
+  const tete = dimsEnTete(octets, genre);
+  let opts, natW = 0, natH = 0, reduit = false;
+  if (tete && maxPx > 0 && tete.W * tete.H > maxPx) {
+    natW = tete.W; natH = tete.H;
+    const k = Math.sqrt(maxPx / (tete.W * tete.H));
+    opts = { resizeWidth: Math.max(1, Math.round(tete.W * k)),
+             resizeHeight: Math.max(1, Math.round(tete.H * k)),
+             resizeQuality: "high" };
+    reduit = true;
+  }
+
   if (typeof createImageBitmap === "function") {
-    const bmp = await createImageBitmap(blob);
-    return { bmp, W: bmp.width, H: bmp.height };
+    let bmp;
+    try { bmp = await createImageBitmap(blob, opts); }
+    catch (e) { bmp = await createImageBitmap(blob); reduit = false; }
+    const res = { bmp: bmp, W: bmp.width, H: bmp.height,
+                  natW: natW || bmp.width, natH: natH || bmp.height, reduit: reduit };
+    if (maxPx > 0) { viderCacheBmp(); BMP_CACHE = { buf: octets, max: maxPx, res: res }; }
+    return res;
   }
   const url = URL.createObjectURL(blob);
   try {
@@ -1210,8 +1325,40 @@ async function decoderImage(octets, mime) {
       e.onload = () => ok(e); e.onerror = () => ko(new Error("image illisible"));
       e.src = url;
     });
-    return { bmp: im, W: im.naturalWidth, H: im.naturalHeight };
+    return { bmp: im, W: im.naturalWidth, H: im.naturalHeight,
+             natW: im.naturalWidth, natH: im.naturalHeight, reduit: false };
   } finally { setTimeout(() => URL.revokeObjectURL(url), 2000); }
+}
+
+/* Fenetre decodee en PLEINE DEFINITION, sans decoder le reste de l'image.
+   C'est ce qui permet de mesurer la nettete d'un JPEG de 250 Mpx. */
+async function decoderCrop(octets, mime, sx, sy, sw, sh) {
+  if (typeof createImageBitmap !== "function") return null;
+  const blob = new Blob([octets], { type: mime || "image/jpeg" });
+  try {
+    const bmp = await createImageBitmap(blob, sx, sy, sw, sh);
+    return { bmp: bmp, W: bmp.width, H: bmp.height };
+  } catch (e) { return null; }
+}
+
+/* Trois fenetres prelevees au tiers, au centre et aux deux tiers : une
+   seule fenetre centrale peut tomber sur un aplat et ne rien mesurer.
+   Remplace le renoncement pur et simple au-dela de LOURD_MPX, qui privait
+   de mesure exactement les fichiers qui en avaient le plus besoin. */
+async function grisEchantillonne(octets, mime, natW, natH, budget) {
+  const cote = Math.max(64, Math.floor(Math.sqrt(budget / 3)));
+  const sw = Math.min(natW, cote), sh = Math.min(natH, cote);
+  const vues = [];
+  for (const a of [0.30, 0.50, 0.70]) {
+    const sx = Math.max(0, Math.min(natW - sw, Math.round(natW * a - sw / 2)));
+    const sy = Math.max(0, Math.min(natH - sh, Math.round(natH * a - sh / 2)));
+    const d = await decoderCrop(octets, mime, sx, sy, sw, sh);
+    if (!d) continue;
+    const g = grisDeBitmap(d.bmp, d.W, d.H, budget);
+    if (d.bmp.close) { try { d.bmp.close(); } catch (e) {} }
+    vues.push({ g: g.g, W: g.W, H: g.H });
+  }
+  return vues.length ? vues : null;
 }
 
 /* Niveaux de gris NATIFS. Aucun reechantillonnage : ce qui entre en pixels
@@ -2296,14 +2443,20 @@ async function controler(buffer, p, dims, orientation) {
   const tol = p.tolerance_mm / 10;
   const saisie = !!(dims && dims.larg > 0 && dims.haut > 0);
   const regle = saisie ? "FIXE" : p.regle_dim;
-  const cl0 = saisie ? dims.larg : p.larg_cm;
-  const ch0 = saisie ? dims.haut : p.haut_cm;
+  /* Le format cible PERMUTE avec l'orientation commandée : sans cela, le
+     contrôle mesure le fichier contre un gabarit que l'opérateur ne
+     regarde plus. */
+  const fc0 = formatCible(p, saisie ? dims : null, orientation);
+  const cl0 = fc0 ? fc0.larg : (saisie ? dims.larg : p.larg_cm);
+  const ch0 = fc0 ? fc0.haut : (saisie ? dims.haut : p.haut_cm);
 
-  /* L'orientation voulue vient, dans l'ordre : des dimensions commandées
-     quand elles sont saisies, du choix de l'opérateur, puis du référentiel. */
+  /* L'orientation voulue vient, dans l'ordre : du référentiel quand il
+     l'impose, des dimensions saisies, du choix de l'opérateur. */
   const orientVoulue =
-      saisie ? (ch0 >= cl0 ? "PORTRAIT" : "PAYSAGE")
-    : (p.orientation === "LIBRE" && orientation && orientation !== "LIBRE") ? orientation
+      (p.orientation && p.orientation !== "LIBRE") ? p.orientation
+    : (p.dim_saisie === "OUI" && saisie) ? (ch0 >= cl0 ? "PORTRAIT" : "PAYSAGE")
+    : (orientation && orientation !== "LIBRE") ? orientation
+    : saisie ? (ch0 >= cl0 ? "PORTRAIT" : "PAYSAGE")
     : p.orientation;
 
   /* Un fichier livré au format fini PLUS le fond perdu est un fichier correct,
@@ -2881,8 +3034,10 @@ async function controler(buffer, p, dims, orientation) {
 function planDeCoupe(r, p, dims) {
   const rd = (v) => Math.round(v * 10) / 10;
   const saisie = !!(dims && dims.larg > 0 && dims.haut > 0);
-  const cibleL = rd(saisie ? dims.larg : (p.regle_dim === "FIXE" ? p.larg_cm : r.lp));
-  const cibleH = rd(saisie ? dims.haut : (p.regle_dim === "FIXE" ? p.haut_cm : r.hp));
+  /* Le plan de coupe dessine le format COMMANDE, orientation comprise. */
+  const fcPC = formatCible(p, saisie ? dims : null);
+  const cibleL = rd(fcPC ? fcPC.larg : r.lp);
+  const cibleH = rd(fcPC ? fcPC.haut : r.hp);
   const maxDim = Math.max(cibleL, cibleH, r.lp, r.hp);
   const W = 620, H = 300, marge = 46;
   const k = Math.min((W-marge*2)/maxDim, (H-marge*2)/maxDim);
@@ -3041,9 +3196,9 @@ async function corriger(buffer, p, opt, couleurs, dims) {
        a celui du produit. Une case restee cochee d'une correction a l'autre
        faisait tourner un portrait sur un produit portrait. */
     const sensSrc = srcH >= srcL ? "PORTRAIT" : "PAYSAGE";
-    const sensCible = (dims && dims.larg > 0 && dims.haut > 0)
-      ? (dims.haut >= dims.larg ? "PORTRAIT" : "PAYSAGE")
-      : (p.regle_dim === "FIXE" ? (p.haut_cm >= p.larg_cm ? "PORTRAIT" : "PAYSAGE") : null);
+    const fcC = formatCible(p, (dims && dims.larg > 0 && dims.haut > 0) ? dims : null,
+                            opt.orientationCible);
+    const sensCible = fcC ? (fcC.haut >= fcC.larg ? "PORTRAIT" : "PAYSAGE") : null;
     const pivote = opt.orientation && !(sensCible && sensSrc === sensCible);
     const effL = pivote ? srcH : srcL;
     const effH = pivote ? srcL : srcH;
@@ -3053,9 +3208,11 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     const saisie = !!(dims && dims.larg > 0 && dims.haut > 0);
     if (opt.miseAuFormat && (saisie || p.regle_dim === "FIXE")) {
       const portrait = effH >= effL;
-      const cl = saisie ? dims.larg : p.larg_cm;
-      const ch = saisie ? dims.haut : p.haut_cm;
-      const libre = (opt.orientationCible || p.orientation) === "LIBRE" && !saisie;
+      /* fcC porte deja la permutation demandee : sur un produit dont le sens
+         est impose ou commande, il n'y a plus rien a deviner ici. */
+      const cl = fcC ? fcC.larg : (saisie ? dims.larg : p.larg_cm);
+      const ch = fcC ? fcC.haut : (saisie ? dims.haut : p.haut_cm);
+      const libre = !saisie && orientationEffective(p, opt.orientationCible) === "LIBRE";
       [trimL, trimH] = (libre && portrait !== (ch >= cl)) ? [MM(ch*10), MM(cl*10)] : [MM(cl*10), MM(ch*10)];
     } else {
       [trimL, trimH] = [effL, effH];
@@ -3152,7 +3309,8 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     journal.push(`Emplacement des ${oeil.nb} œillets marqué sur le fichier.`);
   if (opt.orientation) journal.push("Rotation de 90° pour respecter l'orientation du produit.");
   if (opt.miseAuFormat) {
-    const d = dims && dims.larg > 0 ? dims : { larg: p.larg_cm, haut: p.haut_cm };
+    const d = formatCible(p, dims && dims.larg > 0 ? dims : null, opt.orientationCible)
+           || { larg: p.larg_cm, haut: p.haut_cm };
     journal.push(`Mise à l'échelle vers le format fini ${d.larg} × ${d.haut} cm.`);
   }
   if (bleed > 0) journal.push(`Fond perdu ajouté sans étirement : ${p.fond_perdu_mm / 2} mm par bord, soit ${p.fond_perdu_mm} mm au format. Comblé ${nomCouleur}. TrimBox et BleedBox déclarées.`);
@@ -3506,6 +3664,38 @@ function estRectoVerso(p, r, etat) {
   return (r && r.nbPages > 1) || (vues.nbPages || 1) > 1;
 }
 
+/* ==================================================================== */
+/* PALIERS DE SURFACE                                                   */
+/* -------------------------------------------------------------------- */
+/* Meme syntaxe et MEME SENS DE LECTURE que la colonne `paliers` :       */
+/* « a partir de ». `0:399;0.25:199;0.5:179;0.99:159` se lit de 0 a      */
+/* 0,25 m2 -> 399 EUR/m2, puis 199, puis 179, puis 159 au-dela.          */
+/* La grille papier est ecrite dans l'autre sens (« sous 0,25 m2 ») :    */
+/* la transcrire telle quelle donnerait une facturation inversee.        */
+/* -------------------------------------------------------------------- */
+/* C'est la SURFACE TOTALE DE LA COMMANDE qui decide du palier, pas la   */
+/* surface d'un panneau : quatre panneaux de 0,2 m2 font 0,8 m2 et       */
+/* tombent au tarif de 0,8 m2. Decision JP du 29 aout 2026.              */
+/* ==================================================================== */
+function paliersM2De(p, lamine) {
+  const src = (lamine && String(p.paliers_m2_lam || "").trim())
+    ? p.paliers_m2_lam : p.paliers_m2;
+  if (!src) return [];
+  return String(src).split(";").map(x => {
+    const [s0, m] = x.split(":").map(v => parseFloat(String(v).replace(",", ".")));
+    return (!isNaN(s0) && s0 >= 0 && !isNaN(m) && m > 0) ? { s: s0, m } : null;
+  }).filter(Boolean).sort((a, b) => a.s - b.s);
+}
+
+/* Tarif au m2 applicable a une surface totale donnee. */
+function tarifM2(p, surfaceTotale, lamine) {
+  const pal = paliersM2De(p, lamine);
+  if (!pal.length) return null;
+  let choisi = pal[0];
+  for (const x of pal) if (surfaceTotale >= x.s) choisi = x;
+  return choisi;
+}
+
 function paliersDe(p, rv) {
   const src = (rv && String(p.paliers_rv || "").trim()) ? p.paliers_rv : p.paliers;
   if (!src) return [];
@@ -3578,9 +3768,21 @@ function calculerDevis(p, r, dims, etat) {
       base = choisi.m;
       methode = `palier ${choisi.q} ex · ${grilleRv ? "recto verso" : (rv ? "recto verso, grille unique" : "recto seul")}`;
     }
-  } else if (p.mode_prix === "M2" && p.prix_m2 > 0 && surface !== null) {
-    base = p.prix_m2 * surface * qte;
-    methode = `${p.prix_m2.toFixed(2)} ${TARIFS.devise}/m² × ${surface.toFixed(2)} m²${qte > 1 ? ` × ${qte}` : ""}`;
+  } else if (p.mode_prix === "M2" && surface !== null) {
+    /* Une grille de surface, si le produit en porte une, remplace le prix
+       unique. Le palier est choisi sur la SURFACE TOTALE commandee. */
+    const lamine = !!(etat.opts && etat.opts.includes("LAM"));
+    const surfTot = surface * qte;
+    const t = tarifM2(p, surfTot, lamine);
+    if (t) {
+      base = t.m * surfTot;
+      const grille = (lamine && String(p.paliers_m2_lam || "").trim()) ? "laminé" : "non laminé";
+      methode = `${t.m.toFixed(2)} ${TARIFS.devise}/m² · palier ${t.s} m² et plus · ${grille}`
+              + ` × ${surfTot.toFixed(2)} m²${qte > 1 ? ` (${surface.toFixed(2)} × ${qte})` : ""}`;
+    } else if (p.prix_m2 > 0) {
+      base = p.prix_m2 * surface * qte;
+      methode = `${p.prix_m2.toFixed(2)} ${TARIFS.devise}/m² × ${surface.toFixed(2)} m²${qte > 1 ? ` × ${qte}` : ""}`;
+    }
   } else if (p.mode_prix === "UNITE" && p.prix_unite > 0) {
     base = p.prix_unite * qte;
     methode = `${p.prix_unite.toFixed(2)} ${TARIFS.devise} × ${qte}`;
@@ -3599,6 +3801,13 @@ function calculerDevis(p, r, dims, etat) {
 
   for (const f of finitionsDe(p)) {
     if (!etat.opts || !etat.opts.includes(f.code)) continue;
+    /* Quand le produit porte une grille laminee, cocher « Lamination » a
+       DEJA change le tarif au m2. Ajouter la finition par-dessus la
+       facturerait deux fois. */
+    if (f.code === "LAM" && String(p.paliers_m2_lam || "").trim()) {
+      lignes.push({ lib: f.libelle, methode: "inclus dans le tarif au m² laminé", montant: 0 });
+      continue;
+    }
     let m = 0;
     if (f.mode === "POURCENT") m = base * f.valeur / 100;
     else if (f.mode === "FIXE") m = f.valeur;
@@ -3629,11 +3838,35 @@ function calculerDevis(p, r, dims, etat) {
       montant: m });
     total += m;
   }
+
+  /* --- Frais de traitement --------------------------------------------
+     Plancher de facturation. Une commande de deux stickers ne couvre pas
+     le temps de calage, de decoupe et de comptoir : sous ce seuil, l'ecart
+     est facture comme frais de traitement, ligne nommee sur le devis et
+     sur la facture. Applique APRES remise, sinon la remise pourrait faire
+     passer sous le plancher sans le declencher. */
+  const plancher = Number(TARIFS.fraisTraitementMini);
+  if (!isNaN(plancher) && plancher > 0 && total > 0 && total < plancher) {
+    const m = plancher - total;
+    lignes.push({ lib: "Frais de traitement",
+                  methode: `commande sous le minimum de ${plancher.toFixed(2)} ${TARIFS.devise}`,
+                  montant: m });
+    total = plancher;
+  }
   return { total, lignes, qte, surface, remise: taux };
 }
 
 function blocDevis(p, r) {
-  const etat = devisMemo[p.code] || (devisMemo[p.code] = { qte: 1, opts: [], coefs: [], nb: {} });
+  /* La quantite par defaut etait 1. Sur un produit au palier, 1 ne
+     correspond a AUCUNE quantite vendue : le menu s'ouvrait donc toujours
+     sur « autre… » avec un champ libre a cote, alors que l'operateur veut
+     voir une quantite reelle. On demarre sur le premier palier vendu. */
+  if (!devisMemo[p.code]) {
+    const pal0 = paliersDe(p, false);
+    devisMemo[p.code] = { qte: (p.mode_prix === "PALIER" && pal0.length) ? pal0[0].q : 1,
+                          opts: [], coefs: [], nb: {} };
+  }
+  const etat = devisMemo[p.code];
   const dv = calculerDevis(p, r, dimsSaisies(), etat);
   const fins = finitionsDe(p);
   const coefs = (TARIFS.coefficients || []).filter(c => !c.familles || c.familles.includes(p.famille));
@@ -3674,9 +3907,9 @@ function blocDevis(p, r) {
           if (p.mode_prix === "PALIER" && pal.length) {
             const connue = pal.some(x => x.q === etat.qte);
             return `<select id="qte">
-              ${pal.map(x => `<option value="${x.q}" ${x.q === etat.qte ? "selected" : ""}>${x.q}</option>`).join("")}
-              <option value="autre" ${connue ? "" : "selected"}>autre…</option>
-            </select>${connue ? "" : `<input type="number" id="qteLibre" min="1" step="1" value="${etat.qte}">`}`;
+              ${pal.map(x => `<option value="${x.q}" ${x.q === etat.qte ? "selected" : ""}>${x.q} ex</option>`).join("")}
+              <option value="autre" ${connue ? "" : "selected"}>autre quantité…</option>
+            </select>${connue ? "" : `<input type="number" id="qteLibre" min="1" step="1" value="${etat.qte}" aria-label="Quantité libre">`}`;
           }
           return `<input type="number" id="qte" min="1" step="1" value="${etat.qte}">`;
         })()}
@@ -3882,12 +4115,17 @@ function depuisCsv(txt) {
     const v = t.replace(",", ".").trim();
     return v !== "" && !isNaN(Number(v)) ? Number(v) : null;
   };
+  /* Les colonnes `paliers*` sont des GRILLES, pas des nombres. Sans cette
+     exclusion, `paliers_m2` finit par « _m2 » et tombait dans la regle
+     numerique : « 0:399;0.25:199 » devenait NaN, donc null, et l'import
+     effacait silencieusement la grille tarifaire au m2. */
+  const GRILLE = /^paliers/;
   const NUM = /_(cm|mm|m2)$|^dpi_|^tolerance|^prix_|^mini_/;
   return lignes.filter((l) => l.some((v) => String(v).trim() !== "")).map((l) => {
     const o = {};
     cles.forEach((k, i) => {
       const brut = (l[i] === undefined ? "" : String(l[i])).trim();
-      o[k] = NUM.test(k) ? nombre(brut) : (brut === "" ? "" : brut);
+      o[k] = (!GRILLE.test(k) && NUM.test(k)) ? nombre(brut) : (brut === "" ? "" : brut);
     });
     return o;
   });
@@ -3906,6 +4144,9 @@ function optionsVersLignes() {
              valeur: f.valeur, familles: (f.familles || []).join("|") });
   L.push({ type: "REGLAGE", code: "remiseMax", libelle: "Remise maximale autorisée (%)",
            mode: "", valeur: TARIFS.remiseMax, familles: "" });
+  L.push({ type: "REGLAGE", code: "fraisTraitementMini",
+           libelle: "Frais de traitement — plancher de facturation (€)",
+           mode: "", valeur: TARIFS.fraisTraitementMini, familles: "" });
   L.push({ type: "REGLAGE", code: "devise", libelle: "Devise", mode: "",
            valeur: TARIFS.devise, familles: "" });
   L.push({ type: "REGLAGE", code: "mention", libelle: "Mention du prix", mode: "",
@@ -3922,6 +4163,7 @@ function lignesVersOptions(L) {
     else if (o.type === "FINITION") fins.push({ code: o.code, libelle: o.libelle, mode: o.mode, valeur: nb(o.valeur), familles: fam });
     else if (o.type === "REGLAGE") {
       if (o.code === "remiseMax") TARIFS.remiseMax = nb(o.valeur);
+      else if (o.code === "fraisTraitementMini") TARIFS.fraisTraitementMini = nb(o.valeur);
       else if (o.code === "devise") TARIFS.devise = String(o.valeur || "€");
       else if (o.code === "mention") TARIFS.mention = String(o.valeur || "");
     }
@@ -3996,6 +4238,18 @@ function verifierCoherence(ref) {
       pb.push(`${n} : fond perdu déclaré sur un support signalétique, coupé à la main.`);
     if (p.pages === "MULTIPLE4" && !(p.marge_pli_mm > 0))
       pb.push(`${n} : brochure sans marge au pli — la valeur par défaut sécurité + 3 mm sera utilisée.`);
+  }
+  for (const p of ref) {
+    const n = p.code || "(sans code)";
+    const g = String(p.paliers_m2 || "").trim(), gl = String(p.paliers_m2_lam || "").trim();
+    const mal = (t) => t && !/^\s*\d+(\.\d+)?\s*:\s*\d+(\.\d+)?\s*(;\s*\d+(\.\d+)?\s*:\s*\d+(\.\d+)?\s*)*$/.test(t);
+    if (mal(g))  pb.push(`${n} : paliers m² mal formés — attendu surface:tarif;… par exemple 0:399;0.25:199`);
+    if (mal(gl)) pb.push(`${n} : paliers m² laminé mal formés — même format que la grille non laminée.`);
+    if (gl && !g) pb.push(`${n} : grille m² laminée sans grille non laminée — un client qui ne prend pas la lamination ne serait pas chiffré.`);
+    if (g && paliersM2De({ paliers_m2: g }, false).length && paliersM2De({ paliers_m2: g }, false)[0].s > 0)
+      pb.push(`${n} : les paliers m² ne commencent pas à 0 — une petite surface ne serait pas chiffrée.`);
+    if (g && p.mode_prix !== "M2")
+      pb.push(`${n} : grille de paliers m² sur un produit en mode ${p.mode_prix} — elle ne sera jamais lue.`);
   }
   if (TARIFS.remiseMax === undefined || TARIFS.remiseMax === null || TARIFS.remiseMax === "")
     pb.push(`Remise maximale non renseignée dans les options.`);
@@ -4157,7 +4411,9 @@ const COL_TARIF = [
   ["mode_prix","Mode","PALIER|M2|UNITE","palier : grille de quantités · m² : surface · unité : prix fixe"],
   ["paliers","Paliers recto  quantité:montant;…",0,"grille du recto seul ; sert aussi de liste des quantités vendues"],
   ["paliers_rv","Paliers recto verso",0,"grille du recto verso ; si vide, celle du recto s'applique aux deux"],
-  ["prix_m2","Prix / m²",1,"surface calculée depuis le format fini"],
+  ["paliers_m2","Paliers m² non laminé  surface:tarif;…",0,"grille au m², lue « à partir de » : 0:399;0.25:199;0.5:179;0.99:159. Le palier est choisi sur la surface TOTALE commandée"],
+  ["paliers_m2_lam","Paliers m² laminé",0,"même grille, tarifs laminés ou impression directe ; si vide, la grille non laminée s'applique aux deux"],
+  ["prix_m2","Prix / m²",1,"tarif unique au m², utilisé seulement si aucune grille de paliers m² n'est renseignée"],
   ["prix_unite","Prix / unité",1,"prix pour un exemplaire"],
   ["mini_facturation_m2","Mini m²",1,"surface minimale facturée, pas un critère de conformité"],
 ];
@@ -5198,6 +5454,42 @@ function tailleNaturelle(pxL, pxH, p) {
   return { larg: r(pxL), haut: r(pxH) };
 }
 
+/* ==================================================================== */
+/* FORMAT CIBLE — SOURCE UNIQUE                                         */
+/* -------------------------------------------------------------------- */
+/* La pastille d'orientation n'etait que DECLARATIVE : elle produisait le */
+/* constat ORIENT sans jamais toucher au format vise. Le gabarit restait  */
+/* en 15 x 21 alors que Paysage etait selectionne, et la rotation faisait */
+/* tourner le visuel dans un cadre reste portrait, l'outil comblant les   */
+/* vides. Ici, Paysage PERMUTE largeur et hauteur, et tout ce qui dessine */
+/* un cadre, un trait de coupe ou une zone de securite lit cette          */
+/* fonction — une seule, pour qu'une correction porte partout.           */
+/* -------------------------------------------------------------------- */
+/* Un produit peut imposer son sens (kakemono, roll-up : orientation      */
+/* PORTRAIT au referentiel) : la commande ne peut alors rien y changer.   */
+/* Sur un produit a dimensions saisies, c'est la saisie qui porte le      */
+/* sens, pas la pastille.                                                */
+/* ==================================================================== */
+function orientationEffective(p, orient) {
+  if (!p) return "LIBRE";
+  if (p.orientation && p.orientation !== "LIBRE") return p.orientation;
+  if (p.dim_saisie === "OUI") return "LIBRE";
+  return orient || "LIBRE";
+}
+
+/* Retourne { larg, haut, permute } en cm, ou null si indeterminable. */
+function formatCible(p, dims, orient) {
+  if (!p) return null;
+  let L, H;
+  if (dims && dims.larg > 0 && dims.haut > 0) { L = dims.larg; H = dims.haut; }
+  else if (p.regle_dim === "FIXE" && p.larg_cm > 0 && p.haut_cm > 0) { L = p.larg_cm; H = p.haut_cm; }
+  else return null;
+  const o = orientationEffective(p, orient === undefined ? orientationChoisie() : orient);
+  if (o === "PAYSAGE" && H > L) return { larg: H, haut: L, permute: true };
+  if (o === "PORTRAIT" && L > H) return { larg: H, haut: L, permute: true };
+  return { larg: L, haut: H, permute: false };
+}
+
 /* Ecrit les dimensions commandees et memorise le rapport, pour que la
    saisie reste homothetique. */
 let RATIO_FICHIER = null;
@@ -5224,7 +5516,11 @@ function dimsSaisies() {
 function majFiche() {
   const p = produitCourant();
   if (!p) return;
-  const dim = p.regle_dim === "FIXE" ? `${p.larg_cm} × ${p.haut_cm} cm`
+  /* Le format fini affiché suit l'orientation commandée. Afficher
+     « 15 × 21 cm » sous « Orientation : paysage » est une incohérence que
+     l'opérateur voit avant même que la rotation ne parte de travers. */
+  const fcF = formatCible(p, null);
+  const dim = p.regle_dim === "FIXE" ? `${fcF ? fcF.larg : p.larg_cm} × ${fcF ? fcF.haut : p.haut_cm} cm`
             : p.regle_dim === "MAXI" ? `max ${p.larg_max_cm} × ${p.haut_max_cm} cm`
             : p.regle_dim === "MINI" ? `min ${p.larg_cm} × ${p.haut_cm} cm`
             : p.regle_dim === "PLAGE" ? `${p.larg_cm}×${p.haut_cm} à ${p.larg_max_cm}×${p.haut_max_cm} cm`
@@ -5381,16 +5677,15 @@ function majAlerteDims() {
 async function reconvertirImage(p) {
   const o = ORIGINE;
   if (!o || o.type !== "image" || !o.brut) return false;
-  const d = dimsSaisies();
-  let cL, cH;
-  if (d) { cL = d.larg; cH = d.haut; }
-  else if (p.regle_dim === "FIXE") { cL = p.larg_cm; cH = p.haut_cm; }
-  else { const n = tailleNaturelle(o.pxL, o.pxH, p); cL = n.larg; cH = n.haut; }
+  /* L'image est TOUJOURS reconvertie a sa dimension native pour le produit
+     courant. La mise au format commande est une correction de l'atelier,
+     jamais un effet de bord du changement de produit. */
+  const n = tailleNaturelle(o.pxL, o.pxH, p);
+  const cL = n.larg, cH = n.haut;
   if (!(cL > 0 && cH > 0)) return false;
   if (Math.abs(cL - o.cibleL) < 0.05 && Math.abs(cH - o.cibleH) < 0.05) return false;
 
-  const nat = tailleNaturelle(o.pxL, o.pxH, p);
-  o.natL = nat.larg; o.natH = nat.haut;
+  o.natL = n.larg; o.natH = n.haut;
   o.cibleL = cL; o.cibleH = cH;
   source = await imageVersPdf(o.brut, o.genre, cL, cH);
   SOURCE_INIT = source;
@@ -5417,6 +5712,9 @@ function relancer() {
   vues.journal = null; vues.rAvant = null; CURSEUR = 50;
   for (const k of Object.keys(devisMemo)) delete devisMemo[k].remiseChute;
   reinitVerifs();
+  /* Un changement de produit, de dimensions ou d'orientation invalide
+     l'analyse : le verdict affiché ne porterait plus sur la commande. */
+  ANALYSE_DEMANDEE = false;
   if (ORIGINE && ORIGINE.type === "image") {
     /* l'image est reconvertie au nouveau format avant recontrole */
     const p = produitCourant();
@@ -5463,7 +5761,7 @@ function atelier(r, p, couleurs) {
   const decalMm = decal / 72 * 25.4 / (r.echelle || 1);
   const optCentre = (enc && decalMm > 1) ? `
     <div class="opt">
-      <input type="checkbox" id="cCentrer" checked>
+      <input type="checkbox" id="cCentrer">
       <label for="cCentrer">Recentrer le visuel dans le format
         <small>Le dessin n'est pas au milieu de sa page : il y a environ
         ${decalMm.toFixed(0)} mm de blanc en trop d'un côté. On décale le visuel
@@ -5474,36 +5772,34 @@ function atelier(r, p, couleurs) {
 
   const optOeil = oeil ? `
     <div class="opt">
-      <input type="checkbox" id="cOeillets" checked>
+      <input type="checkbox" id="cOeillets">
       <label for="cOeillets">Marquer l'emplacement des ${oeil.nb} œillets sur le fichier
         <small>Cercle au diamètre de la perforation et croix de centrage, trait fin. Le poinçonnage
         l'enlève, la rondelle couvre le reste : rien ne se voit sur le produit fini.</small></label>
     </div>` : "";
 
-  if (r.fpIntegre) return `
-  <div class="atelier">
-    <h3>Préparation pour le RIP</h3>
-    ${avert}
-    <p class="sous">Le fichier est correct : le fond perdu est là. Poser les traits de coupe est facultatif, mais évite au RIP d'avoir à deviner où couper.</p>
+  /* Une seule liste. « Préparation pour le RIP » sortait AVANT l'atelier et
+     masquait les corrections : l'opérateur voyait deux écrans successifs et
+     découvrait au second passage des options absentes au premier. */
+  const optBoites = r.fpIntegre ? `
     <div class="opt">
       <input type="checkbox" id="cBoites" checked disabled>
-      <label for="cBoites">Poser les traits de coupe à ${p.fond_perdu_mm / 2} mm des bords<small>Le visuel n'est ni déplacé ni redimensionné. Seules les TrimBox et BleedBox sont déclarées.</small></label>
-    </div>
-    ${posOeillets(p, dimsSaisies()) ? `<div class="opt">
-      <input type="checkbox" id="cOeillets" checked>
-      <label for="cOeillets">Marquer l'emplacement des ${posOeillets(p, dimsSaisies()).nb} œillets sur le fichier
-        <small>Cercle au diamètre de la perforation et croix de centrage, trait fin. Le poinçonnage
-        l'enlève, la rondelle couvre le reste : rien ne se voit sur le produit fini.</small></label>
-    </div>` : ""}
-    <div class="actions" style="padding-left:0;padding-right:0;border-top:0;padding-bottom:0">
-      <button class="primaire" id="appliquer">Appliquer et recontrôler</button>
-    </div>
-  </div>`;
+      <label for="cBoites">Poser les traits de coupe à ${p.fond_perdu_mm / 2} mm des bords
+        <small>Le fond perdu est déjà là. Le visuel n'est ni déplacé ni redimensionné :
+        seules les TrimBox et BleedBox sont déclarées, pour éviter au RIP d'avoir à
+        deviner où couper.</small></label>
+    </div>` : "";
 
-  const opt = (id, actif, titre, detail, extra = "") => `
+  /* RIEN N'EST COCHÉ D'AVANCE. Une case cochée par défaut est une correction
+     que l'opérateur n'a pas décidée : elle part sans être lue, et elle n'est
+     pas défendable sur un bon à tirer.
+     Une option sans objet reste VISIBLE, grisée, avec sa raison : ce que
+     l'outil a examiné compte autant que ce qu'il propose. */
+  const opt = (id, actif, titre, detail, extra = "", raison = "") => `
     <div class="opt${actif ? "" : " off"}">
-      <input type="checkbox" id="${id}" ${actif ? "checked" : ""}>
-      <label for="${id}">${titre}<small>${detail}</small></label>${extra}
+      <input type="checkbox" id="${id}"${actif ? "" : " disabled"}>
+      <label for="${id}">${titre}<small>${detail}${
+        actif ? "" : `<em class="sansobjet">${raison || "Sans objet sur ce fichier."}</em>`}</small></label>${extra}
     </div>`;
 
   const d = dimsSaisies();
@@ -5526,13 +5822,18 @@ function atelier(r, p, couleurs) {
           `Mettre au format fini (${cible})`,
           r.ratioKo
             ? "Le visuel garde ses proportions, il est centré à la plus grande taille possible dans le format, et le pourtour est comblé par la couleur de ses bords."
-            : "Mise à l'échelle uniforme. Les vecteurs restent nets, les images conservent leurs pixels, donc leur résolution baisse d'autant. Le recontrôle l'affichera.")}
+            : "Mise à l'échelle uniforme. Les vecteurs restent nets, les images conservent leurs pixels, donc leur résolution baisse d'autant. Le recontrôle l'affichera.",
+          "", "Le fichier est déjà à l'échelle du format commandé.")}
     ${opt("cOrientation", orientKo,
-          `Pivoter en ${(r.orientVoulue || p.orientation).toLowerCase()}`,
-          "Rotation de 90° du contenu, sans déformation.")}
+          `Pivoter en ${(r.orientVoulue || p.orientation || "PORTRAIT").toLowerCase()}`,
+          "Rotation de 90° du contenu. Le format commandé pivote avec : trait de coupe et zone de sécurité suivent.",
+          "", "Le fichier est déjà dans le sens commandé.")}
     ${opt("cFondPerdu", bleedKo,
           `Ajouter le fond perdu : ${p.fond_perdu_mm / 2} mm par bord`,
-          `La page passe au format fini plus ${p.fond_perdu_mm} mm en largeur et en hauteur. Le visuel garde sa taille exacte, la bande créée est comblée par la couleur du bord correspondant. TrimBox et BleedBox déclarées.`)}
+          `La page passe au format fini plus ${p.fond_perdu_mm} mm en largeur et en hauteur. Le visuel garde sa taille exacte, la bande créée est comblée par la couleur du bord correspondant. TrimBox et BleedBox déclarées.`,
+          "", p.fond_perdu_mm > 0 ? "Le fond perdu est déjà présent dans le fichier."
+                                  : "Ce produit se livre sans fond perdu.")}
+    ${optBoites}
     ${optCentre}
     ${optOeil}
     <div class="opt">
@@ -5647,8 +5948,8 @@ async function appliquerRotation(buffer, angle, p, dims, fond) {
   const MMPT = (cm) => cm / 2.54 * 72;
   const cible = (dims && dims.larg > 0 && dims.haut > 0)
     ? { L: MMPT(dims.larg), H: MMPT(dims.haut) }
-    : (p && p.regle_dim === "FIXE" && p.larg_cm > 0
-        ? { L: MMPT(p.larg_cm), H: MMPT(p.haut_cm) } : null);
+    : (function () { const c = formatCible(p, null);
+                     return c ? { L: MMPT(c.larg), H: MMPT(c.haut) } : null; })();
 
   for (const emb of embs) {
     const w = emb.width, h = emb.height;
@@ -5677,8 +5978,9 @@ async function appliquerRotation(buffer, angle, p, dims, fond) {
 }
 
 function posOeillets(p, dims) {
-  const largCm = dims && dims.larg > 0 ? dims.larg : p.larg_cm;
-  const hautCm = dims && dims.haut > 0 ? dims.haut : p.haut_cm;
+  const fcO = formatCible(p, dims && dims.larg > 0 ? dims : null);
+  const largCm = fcO ? fcO.larg : p.larg_cm;
+  const hautCm = fcO ? fcO.haut : p.haut_cm;
   if (!p || !(largCm > 0 && hautCm > 0)) return null;
   const cfg = OEILLETS.parProduit[p.code];
   if (!cfg) return null;
@@ -5723,18 +6025,93 @@ function posOeillets(p, dims) {
    Une image deposee est convertie dans une page au format commande : sans
    cette distinction, l'outil annoncait « fichier client 150 x 205 cm »
    pour un JPEG de 2560 x 640 px, ce qui est faux. */
+/* ==================================================================== */
+/* COMPARATEUR DEMANDE / FOURNI                                         */
+/* -------------------------------------------------------------------- */
+/* Une dimension en cm sur un fichier image est une CONVENTION, pas une  */
+/* mesure : Photoshop lit le tag dpi du fichier (souvent 72) et annonce  */
+/* 40 cm la ou l'outil annonce 9,6. Les deux ont raison, et le client    */
+/* qui a ouvert son fichier conteste le verdict au comptoir.             */
+/* On n'affiche donc plus aucune dimension du fichier fourni : uniquement */
+/* l'ECART au produit commande, en langage de consequence.               */
+/* ==================================================================== */
+function compareDemandeFourni(r, p) {
+  if (!r || !p) return "";
+  const c = formatCible(p, dimsSaisies());
+  const K = r.codes || new Set();
+  const lignes = [];
+
+  /* 1 — Format : proportions, et ce que la mise au format coûtera */
+  if (c) {
+    let fourni, ecart;
+    if (K.has("ORIENT")) { fourni = "sens différent · à pivoter"; ecart = true; }
+    else if (!r.ratioKo && !K.has("RATIO")) { fourni = "proportions identiques"; ecart = false; }
+    else {
+      ecart = true;
+      const rf = r.lp / r.hp, rc = c.larg / c.haut;
+      const large = rf > rc;
+      const cote = large ? "la largeur" : "la hauteur";
+      /* Part du visuel perdue en ajustant le fichier au format, à
+         proportions conservées. */
+      const perdu = 1 - (large ? rc / rf : rf / rc);
+      /* Un écart faible se dit en mm sur le format fini : l'opérateur
+         le montre au client avec une règle. Un écart important ne se dit
+         PAS en mm — « 270 mm à rogner » sur un flyer de 150 mm de large
+         est un chiffre juste et inexploitable. */
+      if (perdu < 0.25) {
+        const mm = Math.round((large ? (c.haut * rf - c.larg) : (c.larg / rf - c.haut)) * 10);
+        fourni = mm > 0 ? `proportions différentes · ${mm} mm à rogner sur ${cote}`
+                        : "proportions différentes";
+      } else {
+        fourni = `proportions très différentes · ${Math.round(perdu * 100)} % de ${cote} perdue`;
+      }
+    }
+    lignes.push(["Format", `${c.larg} × ${c.haut} cm`, fourni, ecart]);
+  }
+
+  /* 2 — Couverture : le seul axe qui déclenche une action atelier */
+  if (p.fond_perdu_mm > 0) {
+    const parBord = p.fond_perdu_mm / 2;
+    let fourni, ecart = true;
+    if (K.has("FP_ABSENT")) fourni = "aucun fond perdu";
+    else if (K.has("FP_INSUF")) {
+      const manque = Math.max(0, Math.round((parBord - (r.fp || 0)) * 10) / 10);
+      fourni = `il manque ${manque} mm par bord`;
+    } else { fourni = "couvre le format et le fond perdu"; ecart = false; }
+    lignes.push(["Couverture", `fond perdu ${parBord} mm par bord`, fourni, ecart]);
+  } else if (K.has("DEBORD")) {
+    lignes.push(["Couverture", "format exact, sans fond perdu",
+                 "le visuel déborde de la page", true]);
+  }
+
+  /* 3 — Qualité : reprise de la pastille Netteté, jamais un second calcul */
+  const n = noteNettete(r.nettete, p);
+  if (n) {
+    lignes.push(["Qualité", n.mini ? `${n.mini} dpi minimum` : "—",
+                 `${n.utile} ${n.mesure ? "dpi utiles" : "dpi à la taille commandée"}`,
+                 n.niveau !== "VERT"]);
+  }
+
+  if (!lignes.length) return "";
+  return `<div class="cmpdf">
+    <div class="cmpdf-tete"><span></span><span>DEMANDÉ</span><span>FOURNI</span></div>
+    ${lignes.map(([t, d, f, e]) => `<div class="cmpdf-l">
+      <span class="cmpdf-t">${t}</span><span class="cmpdf-d">${d}</span>
+      <span class="cmpdf-f ${e ? "ecart" : "ok"}">${f}</span></div>`).join("")}
+  </div>`;
+}
+
 function dimAffichee(ap, titre) {
   const o = ORIGINE;
   const estClient = /client|remis/i.test(titre || "");
-  if (estClient && o && o.type === "image" && o.natL > 0) {
-    return `${o.natL.toFixed(1)} × ${o.natH.toFixed(1)} cm`
-         + ` <span class="px">${o.pxL} × ${o.pxH} px</span>`;
-  }
+  /* Sur un fichier IMAGE : aucune dimension du fourni, voir compareDemandeFourni. */
+  if (estClient && o && o.type === "image") return "";
   return `${ap.largCm.toFixed(1)} × ${ap.hautCm.toFixed(1)} cm`;
 }
 
-function figureApercu(ap, titre, p, avecFondPerdu, echelleCommune) {
+function figureApercu(ap, titre, p, avecFondPerdu, echelleCommune, sous) {
   if (!ap) return "";
+  sous = sous || "";
   /* Sur une FACE de cahier, les reperes sont deja cuits dans l'image, PAR
      PAGE. Les calques CSS ci-dessous raisonnent sur une page unique : sur
      une double page ils tracaient un trait de coupe autour du couple, ce
@@ -5746,7 +6123,8 @@ function figureApercu(ap, titre, p, avecFondPerdu, echelleCommune) {
       : "";
     return `<figure>
       <div class="cadre"><span class="porte"${style}><img src="${ap.url}" alt="${titre}"></span></div>
-      <figcaption><b>${titre}</b> · ${dimAffichee(ap, titre)}</figcaption>
+      <figcaption><b>${titre}</b>${(() => { const dd = dimAffichee(ap, titre); return dd ? " · " + dd : ""; })()}</figcaption>
+      ${sous}
     </figure>`;
   }
   const fpB = avecFondPerdu ? p.fond_perdu_mm / 2 : 0;
@@ -5795,7 +6173,8 @@ function figureApercu(ap, titre, p, avecFondPerdu, echelleCommune) {
     : "";
   return `<figure>
     <div class="cadre"><span class="porte"${style}><img src="${ap.url}" alt="${titre}">${guides}</span></div>
-    <figcaption><b>${titre}</b> · ${dimAffichee(ap, titre)}</figcaption>
+    <figcaption><b>${titre}</b>${(() => { const dd = dimAffichee(ap, titre); return dd ? " · " + dd : ""; })()}</figcaption>
+    ${sous}
   </figure>`;
 }
 
@@ -6064,7 +6443,7 @@ function brancherCompare(r, p) {
    format » tombait dans les dimensions a cause du mot « format ». */
 const AXES = [
   { cle: "nettete", titre: "Netteté",
-    codes: [],
+    codes: ["NET_OEIL"],
     mots: /résolution|dpi|définie|flou|piqué|netteté|trop petite|manqueront de/i,
     mot: { VERT: "nette", ORANGE: "juste", ROUGE: "insuffisante" } },
   /* Le mot « taille » nu attirait ici « Du texte est a la limite du lisible
@@ -6100,10 +6479,56 @@ const AXES = [
 /* ==================================================================== */
 const NET_REF = 1.3;
 
+/* ==================================================================== */
+/* NETTETE A DEUX ETAGES                                                */
+/* -------------------------------------------------------------------- */
+/* Etage 1 — dpi A LA TAILLE COMMANDEE. Arithmetique pure : pixels du    */
+/*   client rapportes au format fini. Jamais en echec sur une image.     */
+/*   C'est un PLAFOND : la nettete reelle ne peut pas le depasser.       */
+/* Etage 2 — dpi UTILES, la mesure fine. Quand elle aboutit, elle        */
+/*   remplace le verdict, toujours vers le bas. Quand elle n'aboutit     */
+/*   pas, elle disparait en silence et l'etage 1 tient.                  */
+/* « non mesurable » disparait de l'interface : ce n'etait pas une       */
+/* information, et la nettete est centrale dans la decision.             */
+/* ==================================================================== */
+function barreNettete(utile, p) {
+  const mini = (p && p.dpi_mini > 0) ? p.dpi_mini : 0;
+  const cible = (p && p.dpi_cible > 0) ? p.dpi_cible : 0;
+  const niveau = (mini && utile < mini) ? "ROUGE"
+               : (cible && utile < cible) ? "ORANGE" : "VERT";
+  let pos;
+  if (!mini || !cible || cible <= mini) pos = Math.max(0, Math.min(100, utile / 3));
+  else if (utile <= mini) pos = 33 * (utile / mini);
+  else if (utile <= cible) pos = 33 + 33 * ((utile - mini) / (cible - mini));
+  else pos = Math.min(100, 66 + 34 * Math.min(1, (utile - cible) / cible));
+  return { utile: utile, mini: mini, cible: cible, niveau: niveau,
+           pos: Math.max(0, Math.min(1, pos / 100)) };
+}
+
+/* Etage 1. Ne depend d'aucune mesure : uniquement des pixels du fichier
+   client et du format cible, orientation comprise. */
+function netteteCommandee(p) {
+  const o = ORIGINE;
+  if (!o || o.type !== "image" || !(o.pxL > 0 && o.pxH > 0)) return null;
+  const c = formatCible(p, dimsSaisies());
+  const L = c ? c.larg : o.natL, H = c ? c.haut : o.natH;
+  if (!(L > 0 && H > 0)) return null;
+  /* Le sens du fichier peut ne pas etre celui de la commande : on compare
+     grand cote a grand cote, sinon un fichier a pivoter sortirait
+     artificiellement bas. */
+  const gp = Math.max(o.pxL, o.pxH), pp = Math.min(o.pxL, o.pxH);
+  const gc = Math.max(L, H), pc = Math.min(L, H);
+  const utile = Math.round(Math.min(gp / (gc / 2.54), pp / (pc / 2.54)));
+  if (!(utile > 0)) return null;
+  const b = barreNettete(utile, p);
+  b.etage = 1; b.mesure = false;
+  return b;
+}
+
 function noteNettete(n, p) {
-  if (!n || !n.exploitable || n.bordTexte === null) return null;
+  if (!n || !n.exploitable || n.bordTexte === null) return netteteCommandee(p);
   const t = n.bordTexte;
-  if (!(t > 0) || !n.dpiPage) return null;
+  if (!(t > 0) || !n.dpiPage) return netteteCommandee(p);
   const utile = Math.round(n.dpiPage * NET_REF / t);
   const mini = (p && p.dpi_mini > 0) ? p.dpi_mini : 0;
   const cible = (p && p.dpi_cible > 0) ? p.dpi_cible : 0;
@@ -6116,7 +6541,14 @@ function noteNettete(n, p) {
   else if (utile <= mini) pos = 33 * (utile / mini);
   else if (utile <= cible) pos = 33 + 33 * ((utile - mini) / (cible - mini));
   else pos = Math.min(100, 66 + 34 * Math.min(1, (utile - cible) / cible));
-  return { utile, mini, cible, niveau, transition: t, pos: Math.max(0, Math.min(1, pos / 100)) };
+  /* La mesure fine ne peut que CONFIRMER ou ABAISSER l'étage 1 : elle mesure
+     la définition réellement portée par les pixels, jamais davantage que ce
+     qu'ils contiennent. Une valeur supérieure au plafond arithmétique est un
+     artefact de mesure, pas une bonne nouvelle. */
+  const plaf = netteteCommandee(p);
+  if (plaf && utile > plaf.utile) return plaf;
+  return { utile, mini, cible, niveau, transition: t, etage: 2, mesure: true,
+           pos: Math.max(0, Math.min(1, pos / 100)) };
 }
 
 function syntheseAxes(r) {
@@ -6180,10 +6612,25 @@ function syntheseAxes(r) {
         + "Aucune limite de taille de ce côté."
         + ((rouge || orange) ? " Un autre point reste signalé sur cet axe : voir le détail." : "");
     } else {
-      out[0].mot = "non mesurable";
-      out[0].sous = (rouge || orange) ? "voir le constat" : "";
-      out[0].detail = (m || "mesure non exploitable sur ce fichier")
-        + " — la mesure de netteté n'a pas abouti, juger à l'œil sur l'aperçu.";
+      /* Repli sur l'étage 1 : le dpi à la taille commandée est toujours
+         calculable sur une image. « non mesurable » ne laissait rien à
+         l'opérateur sur ce qui est pourtant l'axe le plus décisif. */
+      const pl = netteteCommandee(P_COURANT);
+      if (pl) {
+        out[0].mot = pl.utile + " dpi à la taille commandée";
+        out[0].sous = pl.mini ? "minimum " + pl.mini : "";
+        out[0].barre = { pos: pl.pos, mini: pl.mini, cible: pl.cible };
+        if (rang[pl.niveau] > rang[out[0].niveau]) out[0].niveau = pl.niveau;
+        out[0].detail = "Calcul direct : les pixels du fichier rapportés au format commandé. "
+          + "C'est un plafond — la netteté réelle ne peut pas dépasser cette valeur. "
+          + "La mesure fine des contours n'a pas abouti sur ce fichier"
+          + (m ? " (" + m + ")" : "") + " : vérifier à l'œil sur l'agrandissement.";
+      } else {
+        out[0].mot = "à vérifier à l'œil";
+        out[0].sous = (rouge || orange) ? "voir le constat" : "";
+        out[0].detail = (m || "mesure non exploitable sur ce fichier")
+          + " — juger sur l'agrandissement de l'aperçu.";
+      }
     }
   }
   return out;
@@ -6242,7 +6689,7 @@ function blocApercus(r, p) {
   return `
   ${navP}
   <div class="apercus${duo ? " duo" : ""}">
-    ${figureApercu(vues.avant, "Fichier client", p, fpAvant, ech)}
+    ${figureApercu(vues.avant, "Fichier client", p, fpAvant, ech, compareDemandeFourni(r, p))}
     ${duo ? figureApercu(vues.apres, "Après correction", p, p.fond_perdu_mm > 0, ech) : ""}
   </div>
   <div class="leg">
@@ -6381,6 +6828,49 @@ async function zonesDesCoupables(buffer, r, p, noPage) {
 
 function versPagePtDe(p, r) {
   return (p.marge_secu_mm / 25.4 * 72) * (r.echelle || 1);
+}
+
+/* ==================================================================== */
+/* VERIFICATION A L'OEIL DE LA NETTETE                                  */
+/* -------------------------------------------------------------------- */
+/* Posee UNIQUEMENT quand la mesure fine n'a pas abouti : la poser sur   */
+/* tous les fichiers serait un geste ajoute.                             */
+/* La reponse est horodatee, journalisee, versee aux reserves du bon a   */
+/* tirer : le verdict devient une declaration d'operateur datee,         */
+/* opposable en litige. AUCUN APPRENTISSAGE : les seuils ne derivent pas */
+/* tout seuls, ils se modifient dans l'admin, avec une date et un motif. */
+/* ==================================================================== */
+function blocVerifNettete(r, p) {
+  if (r.sansRaster) return "";                    /* page vectorielle */
+  const n = noteNettete(r.nettete, p);
+  if (!n || n.mesure) return "";                  /* mesure fine aboutie */
+  const zs = (r.bande && r.bande.zonesTexte && r.bande.zonesTexte.length)
+    ? r.bande.zonesTexte : [];
+  const rep = VERIFS.nettete;
+  const vig = zs.length
+    ? `<figure class="zone"><img src="${zs[0].url}" alt="" data-zoom="net">
+         <figcaption>${zs[0].libelle}</figcaption></figure>`
+    : "";
+  const corps = `
+    ${vig}
+    <p class="vleg">Le calcul donne <b>${n.utile} dpi à la taille commandée</b>${
+      n.mini ? `, pour un minimum de ${n.mini}` : ""}. C'est un plafond : la mesure
+      fine des contours n'a pas abouti sur ce fichier.
+      ${vig ? "<b>Cliquer pour agrandir.</b>" : "Juger sur l'aperçu agrandi."}</p>`;
+  if (rep) return `<div class="pan verifs">
+    <div class="tete">Netteté vérifiée à l'œil</div>
+    <details class="okrepli"><summary>Vérifié : <b>${rep.libelle}</b>
+      <button data-vid="nettete" data-rep="">Revenir dessus</button></summary>
+      ${corps}</details></div>`;
+  return `<div class="pan verifs">
+    <div class="tete">À vérifier à l'œil</div>
+    ${corps}
+    <p class="vq"><b>Le texte est-il net à cet agrandissement ?</b></p>
+    <div class="vrep">
+      <button data-vid="nettete" data-rep="net">Net</button>
+      <button data-vid="nettete" data-rep="limite">Acceptable, à signaler</button>
+      <button data-vid="nettete" data-rep="flou">Flou</button>
+    </div></div>`;
 }
 
 function blocVerifs(r, p) {
@@ -6551,6 +7041,21 @@ function brancherVerifs(r, p, nomFichier, corrige) {
 /* ==================================================================== */
 function appliquerVerifs(r) {
   if (!r || !Array.isArray(r.constats)) return r;
+  /* Netteté jugée à l'œil : la réponse devient un constat daté. C'est la
+     trace opposable, à la place d'une pastille restée muette. */
+  const vn = VERIFS.nettete;
+  if (vn && !r.constats.some((c) => c[4] === "NET_OEIL")) {
+    const qn = new Date(vn.quand);
+    const hn = `${qn.toLocaleDateString("fr-FR")} à ${qn.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+    const niv = vn.reponse === "flou" ? "ROUGE" : vn.reponse === "limite" ? "ORANGE" : "VERT";
+    const txt = vn.reponse === "flou"
+        ? `Netteté jugée insuffisante à l'œil par l'opérateur le ${hn}. Fichier à reprendre auprès du client.`
+      : vn.reponse === "limite"
+        ? `Netteté jugée acceptable avec réserve à l'œil par l'opérateur le ${hn}. À signaler au client avant tirage.`
+        : `Netteté jugée correcte à l'œil par l'opérateur le ${hn}.`;
+    r.constats.push([niv, txt, "", "", "NET_OEIL"]);
+    if (r.codes && r.codes.add) r.codes.add("NET_OEIL");
+  }
   const rep = VERIFS.bande && VERIFS.bande.reponse;
   const q = VERIFS.bande ? new Date(VERIFS.bande.quand) : null;
   const heure = q ? `${q.toLocaleDateString("fr-FR")} à ${q.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "";
@@ -6674,6 +7179,7 @@ function afficher(r, p, nomFichier, corrige) {
       ${lignes}
     </div>
     ${blocVerifs(r, p)}
+    ${blocVerifNettete(r, p)}
     ${atelier(r, p, palette)}`;
 
   $("inspection").innerHTML = `
@@ -6850,7 +7356,8 @@ function reinit() {
   vues.avant = null; vues.apres = null; vues.rAvant = null; vues.nomAvant = null; vues.journal = null;
   vues.nbPages = 1; PAGE_VUE = 1; VUE_COTE = 0;
   SOURCE_INIT = null; PALETTE_INIT = null; NOM_INIT = null; ROT_MANU = 0; CHOIX_BLANC = false;
-  ORIGINE = null;
+  ORIGINE = null; ANALYSE_DEMANDEE = false;
+  viderCacheBmp();
   reinitVerifs();
   let bandeau = "";
   try { bandeau = signalerAbandonLocal(); } catch (e) { bandeau = ""; }
@@ -6903,6 +7410,35 @@ function progres(pct, texte) {
 
 async function souffler() { return new Promise((r) => setTimeout(r, 0)); }
 
+/* Le fichier est depose et affiche, mais rien n'est analyse ni corrige
+   tant que l'operateur n'a pas demande le controle. */
+let ANALYSE_DEMANDEE = false;
+
+function ecranAttente(p) {
+  const c = formatCible(p, dimsSaisies());
+  const cible = c ? `${c.larg} × ${c.haut} cm` : "format libre";
+  $("zone").innerHTML = `
+    <div class="attente">
+      <div class="attente-tete">
+        <button id="lancerAnalyse" class="cta-analyse">${ico(ICO.autre)}Analyser le fichier</button>
+        <div class="attente-quoi">
+          <b>${dernierNom || "fichier déposé"}</b>
+          <span>${p.produit} · ${cible}${c && c.permute ? " · pivoté selon l'orientation commandée" : ""}</span>
+        </div>
+        <button id="autre2" class="lien-autre">Contrôler un autre fichier</button>
+      </div>
+      <p class="attente-aide">Le fichier est affiché tel qu'il a été reçu. Rien n'a été
+      recadré, redimensionné ni recentré. Vérifiez le produit et les dimensions à droite,
+      puis lancez l'analyse.</p>
+      <div class="apercus">
+        ${figureApercu(vues.avant, "Fichier client", p, false, null)}
+      </div>
+    </div>`;
+  $("inspection").innerHTML = "";
+  $("lancerAnalyse").onclick = () => { ANALYSE_DEMANDEE = true; traiter(null); };
+  $("autre2").onclick = reinit;
+}
+
 async function traiter(f) {
   const p = produitCourant();
   if (!p || !pret) return;
@@ -6915,26 +7451,46 @@ async function traiter(f) {
   await souffler();
   try {
     if (f) {
+      ANALYSE_DEMANDEE = false;
       ouvrirLigne(f.name);
       const brut = await f.arrayBuffer();
       if (estImage(f)) {
         const genre = genreImage(f);
-        const dec = await decoderImage(brut, genre === "png" ? "image/png" : "image/jpeg");
+        const mime = genre === "png" ? "image/png" : "image/jpeg";
+        const dec = await decoderImage(brut, mime, BUDGET_DECODE);
+        /* pxL / pxH sont les pixels REELS du client, jamais ceux du bitmap
+           reduit pour l'affichage. */
+        const pxL = dec.natW || dec.W, pxH = dec.natH || dec.H;
+        if (pxL * pxH > PX_MAX)
+          throw new Error(` : image de ${Math.round(pxL * pxH / 1e6)} Mpx, au-delà de ce qu'un navigateur peut traiter. Demander au client une version réduite`);
         /* Sur un produit a dimension libre, c'est le FICHIER qui donne la
            taille. Prendre le mini du produit transformait une image de
            60 cm en vinyle de 3 x 3 cm sans rien dire. */
-        const nat = tailleNaturelle(dec.W, dec.H, p);
-        let cibleL, cibleH;
-        if (p.regle_dim === "FIXE") { cibleL = p.larg_cm; cibleH = p.haut_cm; }
-        else { cibleL = nat.larg; cibleH = nat.haut; poserDims(nat.larg, nat.haut, p.code); }
+        const nat = tailleNaturelle(pxL, pxH, p);
+        if (p.regle_dim !== "FIXE") poserDims(nat.larg, nat.haut, p.code);
+        /* L'image est convertie A SA DIMENSION NATIVE, jamais au format
+           commande. La mise au format, le recentrage et le comblement sont
+           des CORRECTIONS : elles passent par l'atelier, elles sont nommees
+           et validees sur le bon a tirer. Une modification faite au depot
+           n'apparait nulle part et n'est pas defendable en litige. */
+        const cibleL = nat.larg, cibleH = nat.haut;
         if (!(cibleL > 0 && cibleH > 0))
           throw new Error(" dimensions indéterminables pour ce fichier");
-        const gr = grisDeBitmap(dec.bmp, dec.W, dec.H, NETTETE.budgetPx);
+        /* La nettete se mesure sur les PIXELS DU CLIENT. */
+        let gr;
+        if (dec.reduit) {
+          const vues = await grisEchantillonne(brut, mime, pxL, pxH, NETTETE.budgetPx);
+          gr = vues ? { g: vues[0].g, W: vues[0].W, H: vues[0].H, recadre: true, vues: vues }
+                    : grisDeBitmap(dec.bmp, dec.W, dec.H, NETTETE.budgetPx);
+        } else {
+          gr = grisDeBitmap(dec.bmp, dec.W, dec.H, NETTETE.budgetPx);
+        }
         const prof = sondeProfil(brut, genre);
-        ORIGINE = { type: "image", nom: f.name, genre: genre, pxL: dec.W, pxH: dec.H,
+        ORIGINE = { type: "image", nom: f.name, genre: genre, pxL: pxL, pxH: pxH,
                     natL: nat.larg, natH: nat.haut, brut: brut,
                     icc: prof.icc, cmjn: prof.cmjn, gris: gr.g, W: gr.W, H: gr.H,
-                    recadre: gr.recadre, cibleL: cibleL, cibleH: cibleH };
+                    recadre: gr.recadre, vues: gr.vues || null, reduit: !!dec.reduit,
+                    cibleL: cibleL, cibleH: cibleH };
         source = await imageVersPdf(brut, genre, cibleL, cibleH);
       } else {
         ORIGINE = null;
@@ -6986,6 +7542,15 @@ async function traiter(f) {
       }
     } catch (e) { /* l'apercu reste celui d'avant */ }
 
+    /* ---------------------------------------------------------------- */
+    /* VERROU D'ANALYSE                                                   */
+    /* L'analyse ne part que sur clic. Un « Appliquer et recontrôler » qui */
+    /* révèle des options absentes au premier passage est le pire cas au  */
+    /* comptoir : l'opérateur croit avoir fini, il valide, et l'outil lui  */
+    /* dit après coup qu'il restait du travail.                           */
+    /* ---------------------------------------------------------------- */
+    if (!ANALYSE_DEMANDEE) { PROG_ON = false; ecranAttente(p); return; }
+
     progres(50, "contrôle du fichier");
     await souffler();
     const r = await controler(source, p, dimsSaisies(), orientationChoisie());
@@ -7016,23 +7581,42 @@ function brancherDepot() {
   d.addEventListener("drop", e => { if (e.dataTransfer.files[0]) traiter(e.dataTransfer.files[0]); });
 }
 
-/* import d'un référentiel mis à jour */
-function parserCsv(txt) {
-  const lignes = txt.replace(/^\uFEFF/, "").trim().split(/\r?\n/);
-  const cles = lignes[0].split(";").map(s => s.trim());
-  const nb = ["larg_cm","haut_cm","larg_max_cm","haut_max_cm","tolerance_mm",
-              "fond_perdu_mm","fond_perdu_bas_mm","marge_secu_mm","dpi_mini","dpi_cible","mini_facturation_m2"];
-  return lignes.slice(1).filter(l => l.trim()).map(l => {
-    const v = l.split(";"), o = {};
-    cles.forEach((c, i) => {
-      let x = (v[i] || "").trim();
-      o[c] = nb.includes(c) ? (x === "" ? null : parseFloat(x.replace(",", "."))) : x;
-    });
-    return o;
-  });
+/* Import d'un referentiel mis a jour, depuis le pied de page.
+   -------------------------------------------------------------------
+   CORRIGE : cette fonction decoupait la ligne sur `split(";")` sans tenir
+   compte des guillemets. Or la colonne `paliers` contient elle-meme des
+   points-virgules — « 100:19;200:38;300:49 » — et l'export les entoure de
+   guillemets, comme le veut le format CSV.
+   Consequence : des qu'une grille tarifaire etait saisie, l'import par ce
+   bouton decalait TOUTES les colonnes a partir de `paliers`. Les prix
+   atterrissaient dans `note`, les paliers dans `prix_m2`, en silence.
+   L'import de l'admin, lui, passait deja par `depuisCsv`, qui gere les
+   guillemets. Il n'y a aucune raison d'avoir deux analyseurs : on garde
+   le bon. */
+function parserCsv(txt) { return depuisCsv(txt); }
+
+/* ---------------------------------------------------------------------
+   Verrou de l'administration.
+   Empêche une modification involontaire du référentiel ou des tarifs
+   depuis un poste d'atelier. Ce n'est pas un secret : le code est lisible
+   dans la source. C'est un garde-fou, pas une protection.
+   POUR CHANGER LE CODE : modifier la ligne ci-dessous, rien d'autre.
+   --------------------------------------------------------------------- */
+const CODE_ADMIN = "1234";
+
+function adminDeverrouille() {
+  if (sessionStorage.getItem("calage.admin") === "ok") return true;
+  const saisi = prompt("Code d'accès à l'administration");
+  if (saisi === null) return false;                 // annulation
+  if (saisi.trim() === CODE_ADMIN) {
+    sessionStorage.setItem("calage.admin", "ok");   // oublié à la fermeture de l'onglet
+    return true;
+  }
+  alert("Code incorrect.");
+  return false;
 }
 
-$("ouvrirAdmin").onclick = () => ouvrirAdmin("specs");
+$("ouvrirAdmin").onclick = () => { if (adminDeverrouille()) ouvrirAdmin("specs"); };
 $("choisirDossier").onclick = () => choisirDossier();
 $("importCsv").onclick = () => $("csv").click();
 $("csv").onchange = async (e) => {
@@ -7046,141 +7630,6 @@ $("csv").onchange = async (e) => {
 
 $("produit").onchange = () => { produitChange = true; majRail(); majFiche(); relancer(); };
 $("fichier").onchange = (e) => { if (e.target.files[0]) traiter(e.target.files[0]); };
-
-/* ---------------------------------------------------------------------
-   Choix du produit a l ouverture par le systeme.
-   Un fichier ouvert au clic droit arriverait sinon sur le produit
-   affiche, avec un verdict calcule sur les mauvais criteres.
-   Rend le code choisi, ou null si l operateur annule.
-   --------------------------------------------------------------------- */
-function demanderProduit(nomFichier) {
-  return new Promise((resolve) => {
-    const C = (typeof CHARTE !== "undefined" && CHARTE.couleurs) || {};
-    const voile = document.createElement("div");
-    voile.id = "voileChoixProduit";
-    voile.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);" +
-      "display:flex;align-items:center;justify-content:center;padding:24px";
-
-    const boite = document.createElement("div");
-    boite.style.cssText = "background:" + (C.panneau || "#fff") + ";color:" + (C.texte || "#1A1A1A") +
-      ";border-radius:12px;width:min(560px,100%);max-height:82vh;display:flex;flex-direction:column;" +
-      "box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden";
-
-    const tete = document.createElement("div");
-    tete.style.cssText = "padding:18px 20px 12px;border-bottom:1px solid " + (C.trait || "#D8D8D8");
-    const t1 = document.createElement("div");
-    t1.textContent = "Quel produit ?";
-    t1.style.cssText = "font-weight:900;font-size:19px;letter-spacing:-.02em";
-    const t2 = document.createElement("div");
-    t2.textContent = nomFichier;
-    t2.style.cssText = "font-size:13px;color:" + (C.texteFaible || "#6B6B6B") +
-      ";margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-    tete.append(t1, t2);
-
-    const rech = document.createElement("input");
-    rech.type = "search";
-    rech.placeholder = "Chercher un produit\u2026";
-    rech.style.cssText = "margin:12px 20px 0;padding:10px 12px;font:inherit;font-size:14px;" +
-      "border:1px solid " + (C.trait || "#D8D8D8") + ";border-radius:8px;outline:none";
-
-    const liste = document.createElement("div");
-    liste.style.cssText = "overflow:auto;padding:10px 12px 14px;flex:1";
-
-    const pied = document.createElement("div");
-    pied.style.cssText = "padding:10px 20px 14px;font-size:12px;color:" + (C.texteFaible || "#6B6B6B");
-    pied.textContent = "\u00c9chap pour annuler";
-
-    const fermer = (code) => {
-      document.removeEventListener("keydown", auClavier, true);
-      voile.remove();
-      resolve(code || null);
-    };
-    const auClavier = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); fermer(null); }
-    };
-
-    const dessiner = () => {
-      const q = rech.value.trim().toLowerCase();
-      liste.innerHTML = "";
-      for (const fam of ["IMPRIMERIE", "SIGNALETIQUE"]) {
-        const lot = REF.filter((p) => p.famille === fam &&
-          (!q || (p.produit + " " + p.code).toLowerCase().includes(q)));
-        if (!lot.length) continue;
-        const titre = document.createElement("div");
-        titre.textContent = fam;
-        titre.style.cssText = "font-size:11px;font-weight:700;letter-spacing:.1em;padding:12px 8px 6px;color:" +
-          (C.marque || "#CC2A2A");
-        liste.appendChild(titre);
-        for (const p of lot) {
-          const b = document.createElement("button");
-          b.type = "button";
-          const actuel = p.code === $("produit").value;
-          b.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;gap:12px;" +
-            "width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;cursor:pointer;font:inherit;" +
-            "background:" + (actuel ? (C.fond || "#F0F0F0") : "transparent") + ";color:inherit";
-          b.onmouseenter = () => { b.style.background = C.fond || "#F0F0F0"; };
-          b.onmouseleave = () => { b.style.background = actuel ? (C.fond || "#F0F0F0") : "transparent"; };
-          const g = document.createElement("span");
-          g.textContent = p.produit + (actuel ? "  \u00b7 affich\u00e9" : "");
-          g.style.cssText = "font-size:14px" + (actuel ? ";font-weight:700" : "");
-          const d = document.createElement("span");
-          d.textContent = p.code;
-          d.style.cssText = "font-size:11px;color:" + (C.texteFaible || "#6B6B6B") + ";white-space:nowrap";
-          b.append(g, d);
-          b.onclick = () => fermer(p.code);
-          liste.appendChild(b);
-        }
-      }
-      if (!liste.children.length) {
-        const v = document.createElement("div");
-        v.textContent = "Aucun produit ne correspond.";
-        v.style.cssText = "padding:18px 8px;font-size:14px;color:" + (C.texteFaible || "#6B6B6B");
-        liste.appendChild(v);
-      }
-    };
-
-    rech.oninput = dessiner;
-    voile.onclick = (e) => { if (e.target === voile) fermer(null); };
-    document.addEventListener("keydown", auClavier, true);
-
-    boite.append(tete, rech, liste, pied);
-    voile.appendChild(boite);
-    document.body.appendChild(voile);
-    dessiner();
-    setTimeout(() => rech.focus(), 30);
-  });
-}
-
-/* ---------------------------------------------------------------------
-   Ouverture depuis le systeme : clic droit sur un PDF, JPEG ou PNG puis
-   « Ouvrir avec Calage ». Les types geres sont declares dans
-   manifest.json (file_handlers) ; le systeme passe ici les fichiers.
-   Chromium sur ordinateur uniquement, application installee.
-   --------------------------------------------------------------------- */
-if ("launchQueue" in window && "files" in LaunchParams.prototype) {
-  launchQueue.setConsumer(async (params) => {
-    if (!params.files || !params.files.length) return;
-    try {
-      const f = await params.files[0].getFile();
-      const attendre = () => new Promise((r) => {
-        const tic = setInterval(() => {
-          if (pret && produitCourant()) { clearInterval(tic); r(); }
-        }, 120);
-        setTimeout(() => { clearInterval(tic); r(); }, 15000);
-      });
-      await attendre();                       // moteur PDF charge, produit choisi
-      const code = await demanderProduit(f.name);
-      if (!code) return;                      // Echap : on n analyse rien
-      if (code !== $("produit").value) {
-        $("produit").value = code;
-        produitChange = true;
-        majRail();
-        majFiche();
-      }
-      traiter(f);
-    } catch (e) { /* fichier illisible ou permission refusee */ }
-  });
-}
 
 /* charte graphique : une seule source, le fichier charte.js */
 function appliquerCharte() {

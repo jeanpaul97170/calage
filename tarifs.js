@@ -33,4 +33,10 @@ const TARIFS = {
 
   /* Remise maximale autorisée, en pourcentage. */
   remiseMax: 20,
+
+  /* Plancher de facturation, en euros. Sous ce montant, l'écart est ajouté
+     au devis sous le libellé « Frais de traitement ». Une commande de deux
+     stickers ne couvre pas le temps de calage, de découpe et de comptoir.
+     Mettre à 0 pour désactiver. */
+  fraisTraitementMini: 15,
 };
