@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29u";
+const VERSION = "2026-08-29v";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -6225,9 +6225,12 @@ function atelier(r, p, couleurs) {
     </div>` : ""}
     ${pastilles(couleurs)}
     ${opt("cMiseAuFormat", echelleKo,
-          cibleLivree ? `Mettre au format : page de ${cibleLivree}`
-                      : `Mettre au format fini (${cible})`,
-          (cibleLivree ? `Format fini ${cible}, plus ${p.fond_perdu_mm / 2} mm de fond perdu par bord. ` : "")
+          /* Le libelle dit la page REELLEMENT produite, et il depend de
+             l'autre case : sans « Ajouter le fond perdu », la page sort au
+             format fini. Annoncer 9,4 x 5,9 quand l'outil livre 9 x 5,5
+             etait un mensonge d'interface. Mis a jour au clic. */
+          `Mettre au format : page de <span id="cibleMAF">${cible}</span>`,
+          (cibleLivree ? `Format fini ${cible}. Avec « Ajouter le fond perdu » ci-dessous, la page fera ${cibleLivree}. ` : "")
           + (r.ratioKo
             ? "Le visuel garde ses proportions, il est centré à la plus grande taille possible dans le format, et le pourtour est comblé par la couleur de ses bords."
             : "Mise à l'échelle uniforme. Les vecteurs restent nets, les images conservent leurs pixels, donc leur résolution baisse d'autant. Le recontrôle l'affichera."),
@@ -7611,6 +7614,19 @@ function brancherVerifs(r, p, nomFichier, corrige) {
     afficher(r, p, nomFichier, corrige);
   };
   if ($("cBlanc")) $("cBlanc").onchange = () => { CHOIX_BLANC = $("cBlanc").checked; };
+  /* Le format annonce suit l'etat des cases : coche « Ajouter le fond
+     perdu » et le libelle passe de 9 x 5,5 a 9,4 x 5,9. */
+  const majCible = () => {
+    const c = $("cibleMAF");
+    if (!c) return;
+    const fc = formatCible(p, dimsSaisies());
+    if (!fc) return;
+    const fp = ($("cFondPerdu") && $("cFondPerdu").checked) ? p.fond_perdu_mm / 10 : 0;
+    c.textContent = `${(fc.larg + fp).toFixed(1).replace(/\.0$/, "")} × `
+                  + `${(fc.haut + fp).toFixed(1).replace(/\.0$/, "")} cm`;
+  };
+  if ($("cFondPerdu")) $("cFondPerdu").addEventListener("change", majCible);
+  majCible();
   if ($("actualiser")) $("actualiser").onclick = () => { PAGE_VUE = 1; relancer(); };
   if ($("pgPrec")) $("pgPrec").onclick = () => allerPage(PAGE_VUE - 1);
   if ($("pgSuiv")) $("pgSuiv").onclick = () => allerPage(PAGE_VUE + 1);
