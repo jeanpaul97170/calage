@@ -772,7 +772,7 @@ a.batbtn.primaire:hover{filter:brightness(1.08)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29aa";
+const VERSION = "2026-08-30a";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -863,10 +863,16 @@ async function inscrireCommande(r, p, nomFichier) {
     vus.push({ url: v.url, lib, dim: `${v.largCm.toFixed(1)} × ${v.hautCm.toFixed(1)} cm` });
   }
 
+  /* Le fichier CLIENT, pour l'avant/apres du bon a tirer. On ne le garde
+     que si une correction a reellement eu lieu : sinon les deux images
+     sont identiques et l'affichage trouble au lieu d'expliquer. */
+  const av = vues.apres ? (vues.avantA || vues.avant) : null;
+  const avant = av ? { url: av.url, dim: `${av.largCm.toFixed(1)} × ${av.hautCm.toFixed(1)} cm` } : null;
+
   const cle = p.code + "|" + nomFichier;
   const ligne = { cle, code: p.code, produit: p.produit, fichier: nomFichier,
                   format: fmt, qte: etat.qte || 1, montant: dv.total || 0,
-                  verdict: r.verdict, reserves, visuels: vus };
+                  verdict: r.verdict, reserves, visuels: vus, avant };
   const i = COMMANDE.lignes.findIndex((x) => x.cle === cle);
   if (i >= 0) COMMANDE.lignes[i] = ligne; else COMMANDE.lignes.push(ligne);
   majBandeauCommande();
@@ -4252,7 +4258,7 @@ async function pageBatClient(r, p, nomFichier) {
   const dateFr = `${quand.toLocaleDateString("fr-FR")} à ${quand.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
   const listeProd = lignes.map((l) => `« ${l.produit} » (${l.format})`).join(", ");
   const waErnest = `https://wa.me/${C.ernestWhatsapp || ""}?text=`
-    + encodeURIComponent(`Bonjour ${C.ernestNom || ""}, je viens de l'Imprimerie de Jarry, `
+    + encodeURIComponent(`Bonjour, je viens de l'Imprimerie de Jarry, `
       + `commande ${ref}. Mes fichiers pour ${listeProd} doivent être mis en conformité `
       + `avant impression. Pouvez-vous vous en charger ?`);
   const gab = (C.gabaritUrl || "").replace("{code}", encodeURIComponent(lignes[0] ? lignes[0].code : p.code));
@@ -4314,6 +4320,30 @@ table.lig .n{text-align:right;white-space:nowrap}
 table.lig tfoot td{border-bottom:0;font-weight:700;padding-top:12px}
 .reserve-tarif{margin:12px 0 0;font-size:13px;color:var(--gris)}
 .pour{margin:0 0 14px;font-size:14.5px}
+.ap{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}
+.ap figure{margin:0}
+.ap figcaption{font-size:12.5px}
+@media(max-width:560px){.ap{grid-template-columns:1fr}}
+.apnote{margin:0 0 18px;font-size:13px;color:var(--gris);line-height:1.5}
+.choixintro{margin:0 0 16px;font-size:14.5px;color:var(--gris)}
+.voie{border-radius:12px;padding:16px;margin-bottom:12px}
+.voie-pro{border:2px solid var(--marque);background:#FFF8F8}
+.voie-diy{border:1px solid var(--trait);background:#F7F9F7}
+.voie p{margin:0 0 14px;font-size:14.5px}
+.voie-tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+.voie-tag{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.voie-pro .voie-tag{color:var(--marque)}
+.voie-diy .voie-tag{color:var(--vert)}
+.voie-prix{font-size:12px;color:var(--gris);white-space:nowrap}
+.voie-btns{display:flex;gap:9px;flex-wrap:wrap}
+.vb{flex:1 1 130px;text-align:center;text-decoration:none;padding:12px 14px;border-radius:9px;
+    font-size:14.5px;font-weight:700}
+.vb-plein{background:var(--marque);color:#fff}
+.vb-plein:hover{filter:brightness(1.08)}
+.vb-creux{background:#fff;border:1px solid var(--trait);color:var(--noir)}
+.voie-pro .vb-creux{border-color:var(--marque);color:var(--marque)}
+.voie-diy .vb-creux{border-color:var(--vert);color:var(--vert)}
+.vb-creux:hover{background:var(--fond)}
 .pts{border-top:1px solid var(--trait);padding-top:12px;margin-top:4px}
 .rien{margin:0;font-size:14px;color:var(--vert);font-weight:600}
 footer{max-width:760px;margin:0 auto;padding:0 16px 34px;font-size:12.5px;color:var(--gris);text-align:center}
@@ -4347,7 +4377,15 @@ ${lignes.map((l, li) => `<section>
   <p style="margin:0 0 14px;font-size:14.5px">Fichier <b>${ech(l.fichier)}</b> ·
      ${ech(l.format)} · ${ech(l.qte)} exemplaire${l.qte > 1 ? "s" : ""}.
      C'est ce fichier qui partira en production.</p>
-  ${l.visuels.map((v) => `<figure><img src="${v.url}" alt="${ech(v.lib || "Visuel")}">
+  ${l.avant ? `<div class="ap">
+      <figure><img src="${l.avant.url}" alt="Votre fichier">
+        <figcaption><b>Votre fichier</b> · ${ech(l.avant.dim)}</figcaption></figure>
+      <figure><img src="${l.visuels[0] ? l.visuels[0].url : ""}" alt="Après préparation">
+        <figcaption><b>Après préparation</b> · ${ech(l.visuels[0] ? l.visuels[0].dim : "")}</figcaption></figure>
+    </div>
+    <p class="apnote">À gauche le fichier que vous nous avez remis, à droite celui préparé pour
+       l'impression : mis au format, avec la marge de coupe. Le dessin n'est ni étiré ni déformé.</p>` : ""}
+  ${(l.avant ? l.visuels.slice(1) : l.visuels).map((v) => `<figure><img src="${v.url}" alt="${ech(v.lib || "Visuel")}">
      <figcaption>${ech(v.lib)}${v.lib ? " · " : ""}${ech(v.dim)}</figcaption></figure>`).join("")}
   ${l.reserves.length ? `<div class="pts">
       <p style="margin:0 0 4px;font-size:14.5px"><b>À lire avant de valider.</b>
@@ -4358,15 +4396,40 @@ ${lignes.map((l, li) => `<section>
     </div>` : `<p class="rien">Aucun point à signaler sur ce fichier.</p>`}
 </section>`).join("")}`);
 
-  H.push(`<section>
-  <h2>Vous préférez corriger votre fichier ?</h2>
-  <div class="autres">
-    <a class="autre" href="${waErnest}" target="_blank" rel="noopener">
-      Faire corriger par un professionnel
-      <small>${ech(C.ernestNom || "Notre graphiste")} reprend votre fichier et le rend conforme · prestation payante</small></a>
-    <a class="autre" href="${gab || waGabarit}" target="_blank" rel="noopener">
-      Je le fais moi-même
-      <small>${gab ? "Télécharger le gabarit de ce produit, aux bonnes cotes" : "Demander le gabarit de ce produit par WhatsApp"}</small></a>
+  H.push(`<section class="choix">
+  <h2>Vous préférez d'abord corriger vos fichiers ?</h2>
+  <p class="choixintro">Deux façons de faire. Dans les deux cas, revenez ensuite sur cette page
+     pour valider.</p>
+
+  <div class="voie voie-pro">
+    <div class="voie-tete"><span class="voie-tag">Confier à un professionnel</span>
+      <span class="voie-prix">prestation payante</span></div>
+    <p>Un <b>expert externe</b> reprend vos fichiers et les rend conformes à l'impression.
+       Il est indépendant de l'imprimerie et facture sa prestation directement.</p>
+    <div class="voie-btns">
+      <a class="vb vb-plein" href="${waErnest}" target="_blank" rel="noopener">WhatsApp</a>
+      ${C.ernestEmail ? `<a class="vb vb-creux" href="mailto:${ech(C.ernestEmail)}?subject=${
+        encodeURIComponent("Mise en conformité — commande " + ref)}&body=${
+        encodeURIComponent("Bonjour,\n\nJe viens de l'Imprimerie de Jarry, commande " + ref
+          + ".\nMes fichiers pour " + listeProd + " doivent être mis en conformité avant impression.\n"
+          + "Pouvez-vous vous en charger ?\n\nCordialement,")}">Email</a>` : ""}
+    </div>
+  </div>
+
+  <div class="voie voie-diy">
+    <div class="voie-tete"><span class="voie-tag">Le faire vous-même</span>
+      <span class="voie-prix">gratuit</span></div>
+    <p>Téléchargez le <b>gabarit</b> de votre produit : un fichier aux cotes exactes, avec le trait
+       de coupe et la zone de sécurité déjà tracés. Refaites votre visuel dessus et il passera
+       du premier coup.</p>
+    <div class="voie-btns">
+      ${gab ? `<a class="vb vb-creux" href="${gab}" target="_blank" rel="noopener">
+        Télécharger le gabarit</a>` : ""}
+      ${C.gabaritsIndex ? `<a class="vb vb-creux" href="${ech(C.gabaritsIndex)}" target="_blank" rel="noopener">
+        Tous les gabarits</a>` : ""}
+      ${(!gab && !C.gabaritsIndex) ? `<a class="vb vb-creux" href="${waGabarit}" target="_blank" rel="noopener">
+        Demander le gabarit</a>` : ""}
+    </div>
   </div>
 </section>
 
