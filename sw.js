@@ -5,7 +5,7 @@
    À CHAQUE PUBLICATION : incrémenter le numéro de CACHE ci-dessous.
    Sans cet incrément, les postes qui ont déjà ouvert l'outil conservent
    l'ancienne version. */
-const CACHE = "idj-controle-v128";
+const CACHE = "idj-controle-v130";
 const COQUILLE = ["./", "./index.html", "./referentiel.js", "./charte.js", "./tarifs.js",
                   "./manifest.json", "./icon-192.png", "./icon-512.png"];
 

@@ -663,6 +663,15 @@ table.grille td.txt input{font-family:var(--police-titre)}
 .lot-v{width:0;height:34px;object-fit:contain;flex:0 0 auto;opacity:0;
   border:1px solid var(--trait);background:var(--fond);transition:opacity .2s}
 .lot-v.on{width:auto;max-width:52px;opacity:1}
+.cmd{display:inline-flex;align-items:center;gap:10px;padding:4px 4px 4px 11px;
+  border:1px solid rgba(255,255,255,.28);border-radius:20px;font-size:11.5px}
+.cmd-ref{font-family:var(--police-donnees);color:#fff;font-weight:600}
+.cmd-n{color:rgba(255,255,255,.72)}
+.cmd-t{color:#fff;font-weight:600}
+.cmd-t i{font-style:normal;font-weight:400;color:rgba(255,255,255,.6);margin-left:4px}
+.cmd button{background:rgba(255,255,255,.14);border:0;border-radius:16px;color:#fff;
+  font-family:var(--police-titre);font-size:11.5px;font-weight:600;padding:5px 12px;cursor:pointer}
+.cmd button:hover{background:rgba(255,255,255,.26)}
 .loupe-barre{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
   display:flex;gap:8px;z-index:2}
 .loupe-barre button{background:rgba(255,255,255,.94);border:1px solid var(--traitFort);
@@ -701,6 +710,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
     <span class="ens" id="enseigne">Imprimerie de Jarry</span>
   </div>
   <div class="droite">
+    <span class="cmd" id="commande" hidden></span>
     <span class="mono" id="nbProduits"></span>
     <span class="mono" id="version"></span>
     <span><span class="pastille" id="pastille"></span><span id="etatMoteur">chargement du moteur</span></span>
@@ -740,7 +750,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29w";
+const VERSION = "2026-08-29y";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -763,6 +773,99 @@ let SOURCE_INIT = null, PALETTE_INIT = null, NOM_INIT = null;
 /* n'est JAMAIS ecrit par une correction.                                  */
 /* ====================================================================== */
 let SOURCE_REF = null, PALETTE_REF = null;
+
+/* ====================================================================== */
+/* LA COMMANDE                                                            */
+/* ---------------------------------------------------------------------- */
+/* L'outil raisonnait fichier par fichier : un client commandant une       */
+/* banderole, des flyers et un kakemono repartait avec trois bons a tirer  */
+/* sans lien entre eux, trois signatures et aucun total.                   */
+/* La SESSION est la commande : tout ce qui est controle s'y accumule.     */
+/* Aucun geste ajoute au depot — le nom du client n'est demande qu'au      */
+/* moment de generer le bon a tirer, parce que beaucoup de gens passent au */
+/* comptoir sans commander.                                                */
+/* ====================================================================== */
+let COMMANDE = { ref: null, lignes: [] };
+
+function refCommande() {
+  if (COMMANDE.ref) return COMMANDE.ref;
+  const q = new Date();
+  const j = `${q.getFullYear()}${String(q.getMonth() + 1).padStart(2, "0")}${String(q.getDate()).padStart(2, "0")}`;
+  let n = 1;
+  try {
+    const v = JSON.parse(localStorage.getItem("calage.commande") || "{}");
+    n = (v.jour === j ? (v.n || 0) : 0) + 1;
+    localStorage.setItem("calage.commande", JSON.stringify({ jour: j, n }));
+  } catch (e) {}
+  COMMANDE.ref = `IDJ-${j}-${String(n).padStart(3, "0")}`;
+  return COMMANDE.ref;
+}
+
+function nouvelleCommande() {
+  COMMANDE = { ref: null, lignes: [] };
+  majBandeauCommande();
+}
+
+/* Une ligne par fichier controle. Recontroler le meme fichier met la
+   ligne a jour, il ne la duplique pas. */
+async function inscrireCommande(r, p, nomFichier) {
+  if (!r || !p || !nomFichier) return;
+  refCommande();
+  const etat = devisMemo[p.code] || {};
+  const dv = calculerDevis(p, r, dimsSaisies(), etat);
+  const fmt = dimsSaisies() ? `${dimsSaisies().larg} × ${dimsSaisies().haut} cm`
+    : (p.regle_dim === "FIXE" ? `${p.larg_cm} × ${p.haut_cm} cm` : "format libre");
+  const SURPRISE = /flou|nette|définition|piqué|ternes|couleur|coupé|entamé|amputé|disparaîtra|liséré|remplacée|image|imprimé|invisible/i;
+  const reserves = (r.constats || [])
+    .filter(([n, t]) => (n === "ROUGE" || n === "ORANGE") && SURPRISE.test(t))
+    .map(([, t]) => t.replace(/\s\s\[.+?\]$/, ""));
+
+  /* Les visuels sont figes ICI : la ligne doit survivre au fichier suivant. */
+  const vus = [];
+  const nbV = nbVuesDe(p), nbP = vues.nbPages || 1;
+  const faces = estCahier(p, nbP) ? imposer(nbP) : null;
+  for (let n = 1; n <= nbV; n++) {
+    let v = null;
+    if (n === PAGE_VUE) v = vues.apresA || vues.apres || vues.avantA || vues.avant;
+    else {
+      try {
+        const f = faces ? faces[n - 1] : null;
+        v = f ? await apercuFace(source, f.g, f.d, 0, p) : await apercu(source, n);
+        if (v) v = await annoter(v, p, p.fond_perdu_mm > 0, dimsSaisies());
+      } catch (e) { v = null; }
+    }
+    if (!v) continue;
+    const lib = nbV < 2 ? "" : (faces
+      ? `Feuille ${faces[n-1].feuille} ${faces[n-1].face} · pages ${faces[n-1].g} et ${faces[n-1].d}`
+      : (nbV === 2 ? (n === 1 ? "Recto" : "Verso") : `Page ${n} sur ${nbV}`));
+    vus.push({ url: v.url, lib, dim: `${v.largCm.toFixed(1)} × ${v.hautCm.toFixed(1)} cm` });
+  }
+
+  const cle = p.code + "|" + nomFichier;
+  const ligne = { cle, code: p.code, produit: p.produit, fichier: nomFichier,
+                  format: fmt, qte: etat.qte || 1, montant: dv.total || 0,
+                  verdict: r.verdict, reserves, visuels: vus };
+  const i = COMMANDE.lignes.findIndex((x) => x.cle === cle);
+  if (i >= 0) COMMANDE.lignes[i] = ligne; else COMMANDE.lignes.push(ligne);
+  majBandeauCommande();
+}
+
+function majBandeauCommande() {
+  const z = $("commande");
+  if (!z) return;
+  const n = COMMANDE.lignes.length;
+  if (!n) { z.innerHTML = ""; z.hidden = true; return; }
+  const tot = COMMANDE.lignes.reduce((a, l) => a + (l.montant || 0), 0);
+  z.hidden = false;
+  z.innerHTML = `<span class="cmd-ref">${COMMANDE.ref}</span>`
+    + `<span class="cmd-n">${n} fichier${n > 1 ? "s" : ""}</span>`
+    + (tot > 0 ? `<span class="cmd-t">${tot.toFixed(2)} ${TARIFS.devise} <i>tarif indicatif</i></span>` : "")
+    + `<button id="cmdNouvelle">Nouvelle commande</button>`;
+  $("cmdNouvelle").onclick = () => {
+    if (n > 1 && !confirm(`Vider la commande en cours (${n} fichiers) ?`)) return;
+    nouvelleCommande();
+  };
+}
 let _dernierR = null, produitChange = false;
 const vues = { avant: null, apres: null, rAvant: null, nomAvant: null, journal: null };
 const dimsMemo = {};
@@ -4006,6 +4109,243 @@ async function poserDocument(doc, d, reg, gras) {
    - bon a tirer : reserves + engagement, pas de mesures ni de consignes
    - rapport client : consequences seules
    - rapport atelier : tout, consignes et mesures comprises */
+/* ==================================================================== */
+/* BON A TIRER CLIENT — page HTML autonome                              */
+/* -------------------------------------------------------------------- */
+/* Un seul fichier, visuels compris, ouvrable hors ligne. L'operateur    */
+/* l'envoie par WhatsApp ou en piece jointe ; le client coche, signe, et */
+/* la validation revient par email pre-rempli.                           */
+/* Quand depot.php existera, seule la façon d'envoyer changera : la page */
+/* elle-meme est deja celle de Preflow.                                  */
+/* -------------------------------------------------------------------- */
+/* ATTENTION : le texte d'engagement N'EST PAS VALIDE JURIDIQUEMENT.     */
+/* La page le dit en clair tant que la relecture avocat n'a pas eu lieu. */
+/* ==================================================================== */
+async function pageBatClient(r, p, nomFichier) {
+  const C = (TARIFS && TARIFS.bat) ? TARIFS.bat : {};
+  const ech = (t) => String(t == null ? "" : t)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+  /* Toutes les lignes de la commande, pas seulement le fichier courant. */
+  await inscrireCommande(r, p, nomFichier);
+  const lignes = COMMANDE.lignes.slice();
+  const total = lignes.reduce((a, l) => a + (l.montant || 0), 0);
+  const ref = COMMANDE.ref || nomFichier.replace(/\.[^.]+$/, "");
+  const quand = new Date();
+  const dateFr = `${quand.toLocaleDateString("fr-FR")} à ${quand.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  const listeProd = lignes.map((l) => `« ${l.produit} » (${l.format})`).join(", ");
+  const waErnest = `https://wa.me/${C.ernestWhatsapp || ""}?text=`
+    + encodeURIComponent(`Bonjour ${C.ernestNom || ""}, je viens de l'Imprimerie de Jarry, `
+      + `commande ${ref}. Mes fichiers pour ${listeProd} doivent être mis en conformité `
+      + `avant impression. Pouvez-vous vous en charger ?`);
+  const gab = (C.gabaritUrl || "").replace("{code}", encodeURIComponent(lignes[0] ? lignes[0].code : p.code));
+  const waGabarit = `https://wa.me/${C.whatsappAtelier || ""}?text=`
+    + encodeURIComponent(`Bonjour, pouvez-vous m'envoyer les gabarits pour ${listeProd} ? `
+      + `Je préfère refaire mes fichiers moi-même.`);
+
+  const H = [];
+  H.push(`<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bon à tirer · ${ech(ref)} · Imprimerie de Jarry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--marque:#CC2A2A;--noir:#1A1A1A;--gris:#6B6B6B;--fond:#F0F0F0;--trait:#D8D8D8;
+      --vert:#1E7A46;--orange:#B5651D}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--noir);
+     font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:16px;line-height:1.55}
+.bandeau{background:var(--marque);color:#fff;padding:22px 20px}
+.bandeau h1{margin:0;font-size:22px;font-weight:900;letter-spacing:-.01em}
+.bandeau p{margin:4px 0 0;font-size:14px;opacity:.92}
+main{max-width:760px;margin:0 auto;padding:0 16px 120px}
+section{background:#fff;border:1px solid var(--trait);border-radius:12px;padding:18px;margin:16px 0}
+h2{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--marque)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;font-size:14.5px}
+dt{color:var(--gris)}
+dd{margin:0;font-weight:600}
+figure{margin:0 0 18px}
+figure img{width:100%;height:auto;display:block;border:1px solid var(--trait);border-radius:6px;background:#fff}
+figcaption{margin-top:6px;font-size:13px;color:var(--gris)}
+.pt{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--trait)}
+.pt:first-of-type{border-top:0}
+.pt input{width:22px;height:22px;flex:0 0 auto;margin:1px 0 0;accent-color:var(--marque)}
+.pt label{font-size:15px}
+.champ{display:block;margin:14px 0}
+.champ span{display:block;font-size:13px;color:var(--gris);margin-bottom:5px}
+.champ input{width:100%;padding:12px 13px;border:1px solid var(--trait);border-radius:8px;
+             font:inherit;font-size:16px}
+.engage{background:#FFF8F8;border:1px solid var(--marque);border-radius:10px;padding:16px;margin-top:16px}
+.engage p{margin:0 0 10px;font-size:14.5px}
+.cta{display:block;width:100%;padding:17px;border:0;border-radius:10px;font:inherit;font-size:17px;
+     font-weight:700;color:#fff;background:var(--vert);cursor:pointer;margin-top:16px}
+.cta[disabled]{background:#B9BEB9;cursor:not-allowed}
+.autres{display:grid;gap:10px;margin-top:14px}
+.autre{display:block;padding:14px;border:1px solid var(--trait);border-radius:10px;background:#fff;
+       color:var(--noir);text-decoration:none;font-size:15px;font-weight:600;text-align:center}
+.autre small{display:block;font-weight:400;color:var(--gris);margin-top:3px;font-size:13px}
+.autre:hover{border-color:var(--marque);color:var(--marque)}
+.prov{margin:16px 0 0;font-size:12.5px;color:var(--gris);text-align:center}
+.ok{background:#fff;border:2px solid var(--vert);border-radius:12px;padding:26px;text-align:center}
+.ok h2{color:var(--vert);font-size:19px;text-transform:none;letter-spacing:0}
+table.lig{width:100%;border-collapse:collapse;font-size:14.5px}
+table.lig th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--gris);font-weight:600;padding:0 0 7px;border-bottom:1px solid var(--trait)}
+table.lig td{padding:10px 0;border-bottom:1px solid var(--trait);vertical-align:top}
+table.lig td small{display:block;color:var(--gris);font-size:12.5px;font-weight:400;margin-top:2px}
+table.lig .n{text-align:right;white-space:nowrap}
+table.lig tfoot td{border-bottom:0;font-weight:700;padding-top:12px}
+.reserve-tarif{margin:12px 0 0;font-size:13px;color:var(--gris)}
+.pts{border-top:1px solid var(--trait);padding-top:12px;margin-top:4px}
+.rien{margin:0;font-size:14px;color:var(--vert);font-weight:600}
+footer{max-width:760px;margin:0 auto;padding:0 16px 34px;font-size:12.5px;color:var(--gris);text-align:center}
+</style></head><body>
+<div class="bandeau">
+  <h1>Bon à tirer</h1>
+  <p>Imprimerie de Jarry · à lire et valider avant impression</p>
+</div>
+<main id="page">
+
+<section>
+  <h2>Votre commande ${ech(ref)}</h2>
+  <table class="lig">
+    <thead><tr><th>Produit</th><th>Format</th><th class="n">Qté</th><th class="n">Tarif indicatif</th></tr></thead>
+    <tbody>
+      ${lignes.map((l) => `<tr><td>${ech(l.produit)}<small>${ech(l.fichier)}</small></td>
+        <td>${ech(l.format)}</td><td class="n">${ech(l.qte)}</td>
+        <td class="n">${l.montant > 0 ? ech(l.montant.toFixed(2)) + " " + ech(TARIFS.devise) : "à confirmer"}</td></tr>`).join("")}
+    </tbody>
+    ${total > 0 ? `<tfoot><tr><td colspan="3">Total indicatif</td>
+      <td class="n">${ech(total.toFixed(2))} ${ech(TARIFS.devise)}</td></tr></tfoot>` : ""}
+  </table>
+  <p class="reserve-tarif">Tarifs indicatifs, <b>sous réserve du devis définitif</b>.
+     Établi le ${ech(dateFr)}.</p>
+</section>
+
+${lignes.map((l, li) => `<section>
+  <h2>${ech(l.produit)} — ce que vous validez</h2>
+  <p style="margin:0 0 14px;font-size:14.5px">Fichier <b>${ech(l.fichier)}</b> ·
+     ${ech(l.format)} · ${ech(l.qte)} exemplaire${l.qte > 1 ? "s" : ""}.
+     C'est ce fichier qui partira en production.</p>
+  ${l.visuels.map((v) => `<figure><img src="${v.url}" alt="${ech(v.lib || "Visuel")}">
+     <figcaption>${ech(v.lib)}${v.lib ? " · " : ""}${ech(v.dim)}</figcaption></figure>`).join("")}
+  ${l.reserves.length ? `<div class="pts">
+      <p style="margin:0 0 4px;font-size:14.5px"><b>À lire avant de valider.</b>
+         Cochez chaque point pour confirmer que vous en avez pris connaissance.</p>
+      ${l.reserves.map((t, i) => `<div class="pt">
+        <input type="checkbox" id="r${li}_${i}" class="res">
+        <label for="r${li}_${i}">${ech(t)}</label></div>`).join("")}
+    </div>` : `<p class="rien">Aucun point à signaler sur ce fichier.</p>`}
+</section>`).join("")}`);
+
+  H.push(`<section>
+  <h2>Vous préférez corriger votre fichier ?</h2>
+  <div class="autres">
+    <a class="autre" href="${waErnest}" target="_blank" rel="noopener">
+      Faire corriger par un professionnel
+      <small>${ech(C.ernestNom || "Notre graphiste")} reprend votre fichier et le rend conforme · prestation payante</small></a>
+    <a class="autre" href="${gab || waGabarit}" target="_blank" rel="noopener">
+      Je le fais moi-même
+      <small>${gab ? "Télécharger le gabarit de ce produit, aux bonnes cotes" : "Demander le gabarit de ce produit par WhatsApp"}</small></a>
+  </div>
+</section>
+
+<section>
+  <h2>Votre accord</h2>
+  <label class="champ"><span>Nom et prénom</span>
+    <input id="nom" type="text" autocomplete="name" placeholder="Votre nom"></label>
+  <label class="champ"><span>Société — facultatif</span>
+    <input id="soc" type="text" autocomplete="organization" placeholder="Nom de la société"></label>
+  <label class="champ"><span>Votre email</span>
+    <input id="mail" type="email" autocomplete="email" placeholder="vous@exemple.com"></label>
+
+  <div class="engage">
+    <p>Le fichier a été contrôlé par l'imprimerie et le résultat m'a été soumis.
+       Les points listés ci-dessus m'ont été portés à connaissance avant impression.</p>
+    <p>Je demande expressément l'impression des fichiers en l'état et je renonce à toute réclamation,
+       demande de réimpression, d'avoir ou de remboursement fondée sur ces points.</p>
+    <p>Cette réserve ne couvre que ces points. Imprimerie de Jarry demeure responsable de la conformité
+       de sa production au fichier validé : qualité d'impression, quantités, support, finitions et
+       délai convenus.</p>
+    <div class="pt">
+      <input type="checkbox" id="engage">
+      <label for="engage"><b>Je reconnais avoir pris connaissance de ce qui précède
+        et je demande l'impression des fichiers de la commande ${ech(ref)}.</b></label>
+    </div>
+  </div>
+
+  <button class="cta" id="valider" disabled>Je valide et je demande l'impression</button>
+  <p class="prov">Texte d'engagement provisoire, en attente de relecture juridique.</p>
+</section>
+</main>
+<footer>Imprimerie de Jarry · ZI de Jarry, 97122 Baie-Mahault · 05 90 41 42 53 · ${ech(C.email || "")}</footer>
+
+<scr` + `ipt>
+(function(){
+  var D = ${JSON.stringify({
+      ref: ref, email: C.email || "", total: total,
+      devise: (typeof TARIFS !== "undefined" && TARIFS.devise) ? TARIFS.devise : "€",
+      lignes: lignes.map((l) => ({ produit: l.produit, code: l.code, fichier: l.fichier,
+                                   format: l.format, qte: l.qte, montant: l.montant,
+                                   reserves: l.reserves })) })};
+  var res = [].slice.call(document.querySelectorAll('.res'));
+  var eng = document.getElementById('engage');
+  var nom = document.getElementById('nom');
+  var mail = document.getElementById('mail');
+  var soc = document.getElementById('soc');
+  var btn = document.getElementById('valider');
+  function pret(){
+    var tout = res.every(function(c){ return c.checked; });
+    btn.disabled = !(tout && eng.checked && nom.value.trim().length > 1
+                     && /.+@.+\\..+/.test(mail.value));
+  }
+  res.concat([eng]).forEach(function(c){ c.addEventListener('change', pret); });
+  [nom, mail].forEach(function(c){ c.addEventListener('input', pret); });
+  pret();
+
+  btn.addEventListener('click', function(){
+    var q = new Date();
+    var h = q.toLocaleDateString('fr-FR') + ' à ' + q.toLocaleTimeString('fr-FR',
+              { hour:'2-digit', minute:'2-digit' });
+    var corps = "BON A TIRER VALIDE\\n\\n"
+      + "Commande : " + D.ref + "\\n"
+      + "Client : " + nom.value.trim() + (soc.value.trim() ? " (" + soc.value.trim() + ")" : "") + "\\n"
+      + "Email : " + mail.value.trim() + "\\n"
+      + "Validé le : " + h + "\\n\\n"
+      + D.lignes.map(function(l, i){
+          return "PRODUIT " + (i+1) + " — " + l.produit + " (" + l.code + ")\\n"
+            + "  Fichier : " + l.fichier + "\\n"
+            + "  Format : " + l.format + "\\n"
+            + "  Quantité : " + l.qte + "\\n"
+            + "  Tarif indicatif : " + (l.montant > 0 ? l.montant.toFixed(2) + " " + D.devise : "à confirmer") + "\\n"
+            + (l.reserves.length
+                ? "  Points acceptés :\\n" + l.reserves.map(function(t,j){
+                    return "    " + (j+1) + ". " + t; }).join("\\n") + "\\n"
+                : "  Aucune réserve.\\n");
+        }).join("\\n")
+      + "\\nTOTAL INDICATIF : " + (D.total > 0 ? D.total.toFixed(2) + " " + D.devise : "à confirmer")
+      + " — sous réserve du devis définitif.\\n\\n"
+      + "Le client déclare avoir pris connaissance de ces points et demande l'impression "
+      + "des fichiers en l'état.";
+    var lien = "mailto:" + encodeURIComponent(D.email)
+      + "?subject=" + encodeURIComponent("BAT VALIDE - " + D.ref + " - " + nom.value.trim())
+      + "&body=" + encodeURIComponent(corps);
+    document.getElementById('page').innerHTML =
+      '<section class="ok"><h2>Merci, votre bon à tirer est validé.</h2>'
+      + '<p>Validé le ' + h + ' par ' + nom.value.trim().replace(/[<>&]/g,'') + '.</p>'
+      + '<p>Votre messagerie va s\\'ouvrir avec le récapitulatif. '
+      + '<b>Cliquez sur Envoyer pour que nous le recevions.</b></p>'
+      + '<p style="margin-top:18px"><a class="autre" href="' + lien + '">'
+      + 'Rouvrir le message si rien ne s\\'est passé</a></p></section>';
+    window.location.href = lien;
+  });
+})();
+<\/script></body></html>`);
+
+  return H.join("");
+}
+
 async function genererDoc(r, p, nomFichier, dims, mode) {
   const pourClient = mode === "client", atelier = mode === "atelier", bat = !mode;
   const doc = await PDFLib.PDFDocument.create();
@@ -7360,6 +7700,7 @@ async function telecharger(octets, nom) {
   const type = ext === "csv" ? "text/csv;charset=utf-8"
              : ext === "json" ? "application/json"
              : ext === "js" ? "text/javascript"
+             : ext === "html" ? "text/html;charset=utf-8"
              : "application/pdf";
   const url = URL.createObjectURL(new Blob([octets], { type }));
   const a = document.createElement("a");
@@ -7840,6 +8181,7 @@ function afficher(r, p, nomFichier, corrige) {
       <button id="copier">${ico(ICO.telech)}Rapport atelier</button>
       <button id="rapClient">${ico(ICO.telech)}Rapport client</button>
       ${r.verdict !== "VERT" ? `<button id="bat">${ico(ICO.bat)}Éditer le bon à tirer</button>` : ""}
+      <button id="batClient">${ico(ICO.bat)}Bon à tirer à envoyer au client</button>
 
       ${(SOURCE_INIT && source !== SOURCE_INIT)
           ? `<button id="revenir">Revenir au fichier client</button>` : ""}
@@ -8058,6 +8400,24 @@ function afficher(r, p, nomFichier, corrige) {
         : "Visuel remis dans son sens d'origine.", "", ""]);
       afficher(r2, p, nomFichier, false);
     } catch (e) { PROG_ON = false; alert("Rotation impossible : " + e.message); }
+  };
+
+  /* Le bon a tirer client : une page HTML autonome, visuels compris,
+     que l'operateur envoie par WhatsApp ou en piece jointe. */
+  if ($("batClient")) $("batClient").onclick = async () => {
+    const b = $("batClient");
+    const av = b.textContent;
+    /* Le nom du client n'est demande QU'ICI : beaucoup de gens passent au
+       comptoir sans commander, le reclamer au depot serait un geste ajoute
+       pour rien. */
+    b.disabled = true; b.textContent = "Préparation…";
+    try {
+      const html = await pageBatClient(r, p, nomFichier);
+      await telecharger(new TextEncoder().encode(html),
+                        "BAT-" + (COMMANDE.ref || "commande") + ".html");
+    } catch (e) {
+      alert("Le bon à tirer client n'a pas pu être préparé : " + (e.message || e));
+    } finally { b.disabled = false; b.textContent = av; }
   };
 
   if ($("revenir")) $("revenir").onclick = async () => {
@@ -8589,6 +8949,8 @@ async function traiter(f) {
     await souffler();
     if (!vues.apres) { vues.rAvant = r; vues.nomAvant = dernierNom; }
     majLigne(r, p, dimsSaisies());
+    /* La commande s'alimente toute seule : zero geste ajoute. */
+    inscrireCommande(r, p, dernierNom).catch(() => {});
     afficher(r, p, dernierNom);
   } catch (e) {
     PROG_ON = false;
