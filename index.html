@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29q";
+const VERSION = "2026-08-29s";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -3379,7 +3379,7 @@ async function corriger(buffer, p, opt, couleurs, dims) {
 
   const out = await PDFLib.PDFDocument.create();
   /* Portee fichier, pas page : le journal dit une fois ce qui a ete fait. */
-  let aCouvert = false, motifCouvre = "";
+  let aCouvert = false, motifCouvre = "", motifOrigine = "", decalSignale = false;
   const pages = await out.embedPdf(src, src.getPageIndices());
 
   const journal = [];
@@ -3401,6 +3401,32 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     let bsrc = null;
     try { bsrc = lireBoites(pagesSrc[iP]); } catch (e) { bsrc = null; }
     const trimSrc = (bsrc && bsrc.trim) ? bsrc.trim : null;
+
+    /* ================================================================== */
+    /* ORIGINE DE LA BOITE SOURCE — regle generale                         */
+    /* ------------------------------------------------------------------ */
+    /* Une MediaBox n'a AUCUNE obligation de commencer a [0, 0]. La norme  */
+    /* PDF autorise n'importe quelle origine, et Canva exporte volontiers  */
+    /* des cartes en [0, 7.92, 252, 151.92] : dimensions justes, repere    */
+    /* decale de 2,79 mm.                                                  */
+    /* `drawPage` place l'ORIGINE de cette boite au point demande. Sans    */
+    /* compenser, tout le contenu se retrouve decale de la valeur de       */
+    /* l'origine — colle en haut, un vide en bas, et rien dans le fichier  */
+    /* client ne le laissait deviner.                                      */
+    /* On soustrait donc l'origine a chaque dessin. Sur une boite normale  */
+    /* elle vaut 0 et rien ne change : la regle est sans effet de bord.    */
+    /* ================================================================== */
+    const bOrig = (bsrc && bsrc.media) ? bsrc.media : null;
+    const orgX = bOrig ? (bOrig[0] || 0) : 0;
+    const orgY = bOrig ? (bOrig[1] || 0) : 0;
+    if ((Math.abs(orgX) > 0.01 || Math.abs(orgY) > 0.01) && !decalSignale) {
+      decalSignale = true;
+      motifOrigine = `Repère du fichier client décalé de `
+        + `${Math.abs(orgX) > 0.01 ? (orgX / 72 * 25.4).toFixed(2) + " mm horizontalement" : ""}`
+        + `${Math.abs(orgX) > 0.01 && Math.abs(orgY) > 0.01 ? " et " : ""}`
+        + `${Math.abs(orgY) > 0.01 ? (orgY / 72 * 25.4).toFixed(2) + " mm verticalement" : ""}`
+        + ` (boîte à l'origine ${orgX} ${orgY}) : compensé, le visuel est replacé au centre.`;
+    }
     /* Garde-fou : ne jamais pivoter un fichier dont le sens correspond deja
        a celui du produit. Une case restee cochee d'une correction a l'autre
        faisait tourner un portrait sur un produit portrait. */
@@ -3536,8 +3562,14 @@ async function corriger(buffer, p, opt, couleurs, dims) {
         if (w > 0.5 && h > 0.5) pg.drawRectangle({ x, y, width:w, height:h, color: RGB(col) });
     }
 
-    if (pivote) pg.drawPage(emb, { x: ox+posL, y: oy, xScale:k, yScale:k, rotate: PDFLib.degrees(90) });
-    else pg.drawPage(emb, { x: ox, y: oy, xScale:k, yScale:k });
+    /* L'origine de la boite source est retranchee, a l'echelle. Sur une
+       page pivotee de 90°, les axes sont echanges : l'origine X agit sur
+       le Y du resultat, et l'origine Y sur le X, en sens inverse. */
+    if (pivote)
+      pg.drawPage(emb, { x: ox + posL + orgY * k, y: oy - orgX * k,
+                         xScale: k, yScale: k, rotate: PDFLib.degrees(90) });
+    else
+      pg.drawPage(emb, { x: ox - orgX * k, y: oy - orgY * k, xScale: k, yScale: k });
 
     pg.setMediaBox(0, 0, pageLf, pageHf);
     pg.setBleedBox(0, 0, pageLf, pageHf);
@@ -3564,6 +3596,7 @@ async function corriger(buffer, p, opt, couleurs, dims) {
            || { larg: p.larg_cm, haut: p.haut_cm };
     journal.push(`Mise à l'échelle vers le format fini ${d.larg} × ${d.haut} cm.`);
   }
+  if (motifOrigine) journal.push(motifOrigine);
   if (motifCouvre) journal.push(motifCouvre);
   if (bleed > 0 && !aCouvert)
     journal.push(`Fond perdu ajouté sans étirement : ${p.fond_perdu_mm / 2} mm par bord, soit ${p.fond_perdu_mm} mm au format. Comblé ${nomCouleur}. TrimBox et BleedBox déclarées.`);
@@ -6280,7 +6313,14 @@ async function appliquerRotation(buffer, angle, p, dims, fond) {
     : (function () { const c = formatCible(p, null);
                      return c ? { L: MMPT(c.larg), H: MMPT(c.haut) } : null; })();
 
-  for (const emb of embs) {
+  const pgsSrc = src.getPages();
+  for (let i = 0; i < embs.length; i++) {
+    const emb = embs[i];
+    /* Meme regle qu'a la correction : une boite source dont l'origine n'est
+       pas [0, 0] decale tout le contenu. On la retranche. */
+    let bo = null;
+    try { const b = lireBoites(pgsSrc[i]); bo = b && b.media ? b.media : null; } catch (e) {}
+    const orgX = bo ? (bo[0] || 0) : 0, orgY = bo ? (bo[1] || 0) : 0;
     const w = emb.width, h = emb.height;
     const quart = (angle === 90 || angle === 270);
     /* emprise du visuel une fois tourne */
@@ -6297,9 +6337,14 @@ async function appliquerRotation(buffer, angle, p, dims, fond) {
                          ? PDFLib.rgb(fond[0]/255, fond[1]/255, fond[2]/255)
                          : PDFLib.rgb(1, 1, 1) });
     const opts = { xScale: k, yScale: k, rotate: PDFLib.degrees(angle) };
-    if (angle === 90)       pg.drawPage(emb, Object.assign({ x: ox + ol, y: oy }, opts));
-    else if (angle === 180) pg.drawPage(emb, Object.assign({ x: ox + ol, y: oy + oh }, opts));
-    else                    pg.drawPage(emb, Object.assign({ x: ox, y: oy + oh }, opts));
+    /* La compensation suit la rotation : a 90° les axes sont echanges,
+       a 180° ils sont inverses, a 270° echanges dans l'autre sens. */
+    if (angle === 90)
+      pg.drawPage(emb, Object.assign({ x: ox + ol + orgY * k, y: oy - orgX * k }, opts));
+    else if (angle === 180)
+      pg.drawPage(emb, Object.assign({ x: ox + ol + orgX * k, y: oy + oh + orgY * k }, opts));
+    else
+      pg.drawPage(emb, Object.assign({ x: ox - orgY * k, y: oy + oh + orgX * k }, opts));
     pg.setMediaBox(0, 0, pl, ph);
   }
   const o = await out.save();
@@ -7783,8 +7828,16 @@ function afficher(r, p, nomFichier, corrige) {
            « apres » doit etre la MEME face, recomposee sur le fichier corrige. */
         const fA = estCahier(p, vues.nbPages) ? imposer(vues.nbPages) : null;
         const f = fA ? fA[Math.min(PAGE_VUE, fA.length) - 1] : null;
+        /* PAGE_VUE, pas la page 1 : sans le numero, la vue « apres » etait
+           toujours la premiere page. Sur un recto verso regarde en page 2,
+           le comparateur opposait donc le verso client au recto corrige. */
         vues.apres = f ? await apercuFace(source, f.g, f.d, 0, p)
-                       : await apercu(source);
+                       : await apercu(source, PAGE_VUE);
+        /* Les vues ANNOTEES sont regenerees a la demande, mais seulement si
+           elles sont absentes (« if (!vues.apresA) »). Sans cette remise a
+           zero, le comparateur du bas continuait d'afficher les reperes de
+           la correction PRECEDENTE. */
+        vues.avantA = null; vues.apresA = null;
       }
       /* Le journal accumule une entree PAR PAGE : sur un depliant recto
          verso recentre pareil des deux cotes, la meme phrase sortait deux
