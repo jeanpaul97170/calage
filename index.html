@@ -667,6 +667,28 @@ table.grille td.txt input{font-family:var(--police-titre)}
   border:1px solid rgba(255,255,255,.28);border-radius:20px;font-size:11.5px}
 .cmd-ref{font-family:var(--police-donnees);color:#fff;font-weight:600}
 .cmd-n{color:rgba(255,255,255,.72)}
+.cmd-c{color:#fff;font-weight:600;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cli{max-width:430px;margin:0 auto;text-align:left}
+.cli p{margin:0 0 18px;font-size:13px;color:var(--texteFaible);line-height:1.55}
+.cli label{display:block;margin-bottom:13px}
+.cli label span{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--texteFaible);margin-bottom:5px}
+.cli input{width:100%;padding:11px 12px;border:1px solid var(--trait);border-radius:var(--r);
+  font-family:var(--police-donnees);font-size:15px;background:var(--panneau);color:var(--texte)}
+.cli input:focus{outline:2px solid var(--marque);outline-offset:1px}
+.cli .primaire{width:100%;margin-top:6px;padding:13px}
+.batnom{font-family:var(--police-donnees);font-size:13px;color:var(--texte);
+  background:var(--fond);border:1px solid var(--trait);border-radius:var(--r);
+  padding:10px 12px;margin:0 0 16px;word-break:break-all}
+.batbtn{display:block;text-align:center;text-decoration:none;padding:13px;border-radius:var(--r);
+  font-family:var(--police-titre);font-weight:700;font-size:14px;margin-top:10px}
+a.batbtn.primaire{background:var(--vert);color:#fff;border:0}
+a.batbtn.primaire:hover{filter:brightness(1.08)}
+.batbtn.contour{background:var(--panneau);border:1px solid var(--traitFort);color:var(--texte);
+  font-weight:600}
+.batbtn.contour:hover{background:var(--fond);border-color:var(--marque);color:var(--marque)}
+.batbtn small{display:block;font-weight:400;font-size:12px;color:var(--texteFaible);margin-top:3px}
+.batpied{margin:16px 0 0;font-size:12px;color:var(--texteFaible);line-height:1.5}
 .cmd-t{color:#fff;font-weight:600}
 .cmd-t i{font-style:normal;font-weight:400;color:rgba(255,255,255,.6);margin-left:4px}
 .cmd button{background:rgba(255,255,255,.14);border:0;border-radius:16px;color:#fff;
@@ -750,7 +772,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29y";
+const VERSION = "2026-08-29aa";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -785,7 +807,7 @@ let SOURCE_REF = null, PALETTE_REF = null;
 /* moment de generer le bon a tirer, parce que beaucoup de gens passent au */
 /* comptoir sans commander.                                                */
 /* ====================================================================== */
-let COMMANDE = { ref: null, lignes: [] };
+let COMMANDE = { ref: null, lignes: [], client: null };
 
 function refCommande() {
   if (COMMANDE.ref) return COMMANDE.ref;
@@ -802,7 +824,7 @@ function refCommande() {
 }
 
 function nouvelleCommande() {
-  COMMANDE = { ref: null, lignes: [] };
+  COMMANDE = { ref: null, lignes: [], client: null };
   majBandeauCommande();
 }
 
@@ -850,6 +872,98 @@ async function inscrireCommande(r, p, nomFichier) {
   majBandeauCommande();
 }
 
+/* Le nom du client est saisi par L'OPERATEUR, au moment de generer le bon
+   a tirer. Pas au depot : beaucoup de gens passent au comptoir sans
+   commander. Pas par le client sur la page : c'est Joris qui sait a qui il
+   parle, et c'est ce nom qui doit revenir dans le journal. */
+function demanderClient() {
+  return new Promise((ok) => {
+    const c = COMMANDE.client || {};
+    $("calques").innerHTML = `
+    <div class="pleinecran" id="cliPlein">
+      <div class="pe-tete"><h2>À qui est cette commande ?</h2>
+        <button id="cliAnnuler">Annuler</button></div>
+      <div class="pe-corps">
+        <div class="cli">
+          <p>Ce nom apparaît sur le bon à tirer, dans le mail de retour et dans le journal.
+             Le client le confirmera en signant.</p>
+          <label><span>Nom du client</span>
+            <input id="cliNom" type="text" value="${(c.nom || "").replace(/"/g, "&quot;")}"
+                   placeholder="Nom et prénom" autocomplete="off"></label>
+          <label><span>Société — facultatif</span>
+            <input id="cliSoc" type="text" value="${(c.soc || "").replace(/"/g, "&quot;")}"
+                   placeholder="Nom de la société" autocomplete="off"></label>
+          <label><span>Email du client — facultatif</span>
+            <input id="cliMail" type="email" value="${(c.mail || "").replace(/"/g, "&quot;")}"
+                   placeholder="client@exemple.com" autocomplete="off"></label>
+          <button class="primaire" id="cliOk">Générer le bon à tirer</button>
+        </div>
+      </div>
+    </div>`;
+    const fermer = (v) => { $("calques").innerHTML = ""; document.onkeydown = null; ok(v); };
+    const valider = () => {
+      const n = $("cliNom").value.trim();
+      if (n.length < 2) { $("cliNom").focus(); return; }
+      COMMANDE.client = { nom: n, soc: $("cliSoc").value.trim(), mail: $("cliMail").value.trim() };
+      /* Les fichiers de cette commande ont ete journalises AVANT que le nom
+         soit connu : on le leur applique retroactivement, sinon la moitie
+         du journal reste anonyme. */
+      try {
+        for (const l of JOURNAL) if (l.commande === COMMANDE.ref) l.client = n;
+        sauverJournal();
+      } catch (e) {}
+      majBandeauCommande();
+      fermer(COMMANDE.client);
+    };
+    $("cliOk").onclick = valider;
+    $("cliAnnuler").onclick = () => fermer(null);
+    $("cliNom").onkeydown = (e) => { if (e.key === "Enter") valider(); };
+    document.onkeydown = (e) => { if (e.key === "Escape") fermer(null); };
+    setTimeout(() => { const i = $("cliNom"); if (i) i.focus(); }, 30);
+  });
+}
+
+/* Ce qui se passe une fois le fichier ecrit.
+   -------------------------------------------------------------------
+   Calage tourne dans le navigateur : il ne peut pas HEBERGER une page,
+   donc il ne peut pas produire de lien. Il produit un FICHIER, que
+   l'operateur envoie. Ce panneau le dit sans detour et donne les deux
+   gestes qui suivent : verifier, puis envoyer.
+   Le jour ou depot.php existera, ce meme panneau affichera une URL a
+   copier — la page, elle, ne changera pas d'une ligne. */
+function apresBat(html, nomBat, cli) {
+  const C = (TARIFS && TARIFS.bat) ? TARIFS.bat : {};
+  const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  const wa = `https://wa.me/?text=` + encodeURIComponent(
+    `Bonjour${cli && cli.nom ? " " + cli.nom : ""}, voici le bon à tirer de votre commande `
+    + `${COMMANDE.ref} chez Imprimerie de Jarry. Ouvrez le fichier joint, vérifiez les visuels, `
+    + `cochez les points signalés et validez. Merci !`);
+  $("calques").innerHTML = `
+  <div class="pleinecran" id="batPlein">
+    <div class="pe-tete"><h2>Bon à tirer préparé</h2>
+      <button id="batFermer">Fermer</button></div>
+    <div class="pe-corps">
+      <div class="cli">
+        <p class="batnom">${nomBat}</p>
+        <p>Le fichier est dans vos téléchargements. <b>Calage ne peut pas l'héberger :
+           il n'y a pas de lien à copier.</b> Envoyez ce fichier au client, par WhatsApp
+           ou en pièce jointe d'un email. Il l'ouvre, coche, valide, et vous recevez
+           la validation par retour de mail.</p>
+        <a class="primaire batbtn" id="batVoir" href="${url}" target="_blank" rel="noopener">
+          Ouvrir pour vérifier</a>
+        <a class="batbtn contour" href="${wa}" target="_blank" rel="noopener">
+          Écrire au client sur WhatsApp<small>le message s'ouvre pré-rempli · joignez le fichier</small></a>
+        <p class="batpied">Un lien à copier deviendra possible quand la page sera hébergée
+           sur le site — c'est le chantier <b>depot.php</b>.</p>
+      </div>
+    </div>
+  </div>`;
+  const fermer = () => { $("calques").innerHTML = ""; document.onkeydown = null;
+                         setTimeout(() => URL.revokeObjectURL(url), 60000); };
+  $("batFermer").onclick = fermer;
+  document.onkeydown = (e) => { if (e.key === "Escape") fermer(); };
+}
+
 function majBandeauCommande() {
   const z = $("commande");
   if (!z) return;
@@ -858,6 +972,7 @@ function majBandeauCommande() {
   const tot = COMMANDE.lignes.reduce((a, l) => a + (l.montant || 0), 0);
   z.hidden = false;
   z.innerHTML = `<span class="cmd-ref">${COMMANDE.ref}</span>`
+    + (COMMANDE.client ? `<span class="cmd-c">${COMMANDE.client.nom}</span>` : "")
     + `<span class="cmd-n">${n} fichier${n > 1 ? "s" : ""}</span>`
     + (tot > 0 ? `<span class="cmd-t">${tot.toFixed(2)} ${TARIFS.devise} <i>tarif indicatif</i></span>` : "")
     + `<button id="cmdNouvelle">Nouvelle commande</button>`;
@@ -4123,6 +4238,7 @@ async function poserDocument(doc, d, reg, gras) {
 /* ==================================================================== */
 async function pageBatClient(r, p, nomFichier) {
   const C = (TARIFS && TARIFS.bat) ? TARIFS.bat : {};
+  const cli = COMMANDE.client || {};
   const ech = (t) => String(t == null ? "" : t)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
@@ -4197,6 +4313,7 @@ table.lig td small{display:block;color:var(--gris);font-size:12.5px;font-weight:
 table.lig .n{text-align:right;white-space:nowrap}
 table.lig tfoot td{border-bottom:0;font-weight:700;padding-top:12px}
 .reserve-tarif{margin:12px 0 0;font-size:13px;color:var(--gris)}
+.pour{margin:0 0 14px;font-size:14.5px}
 .pts{border-top:1px solid var(--trait);padding-top:12px;margin-top:4px}
 .rien{margin:0;font-size:14px;color:var(--vert);font-weight:600}
 footer{max-width:760px;margin:0 auto;padding:0 16px 34px;font-size:12.5px;color:var(--gris);text-align:center}
@@ -4209,6 +4326,8 @@ footer{max-width:760px;margin:0 auto;padding:0 16px 34px;font-size:12.5px;color:
 
 <section>
   <h2>Votre commande ${ech(ref)}</h2>
+  ${cli.nom ? `<p class="pour">Établi pour <b>${ech(cli.nom)}</b>${
+    cli.soc ? ` — ${ech(cli.soc)}` : ""}. Vérifiez ce nom et corrigez-le si besoin plus bas.</p>` : ""}
   <table class="lig">
     <thead><tr><th>Produit</th><th>Format</th><th class="n">Qté</th><th class="n">Tarif indicatif</th></tr></thead>
     <tbody>
@@ -4254,11 +4373,14 @@ ${lignes.map((l, li) => `<section>
 <section>
   <h2>Votre accord</h2>
   <label class="champ"><span>Nom et prénom</span>
-    <input id="nom" type="text" autocomplete="name" placeholder="Votre nom"></label>
+    <input id="nom" type="text" autocomplete="name" placeholder="Votre nom"
+           value="${ech(cli.nom || "")}"></label>
   <label class="champ"><span>Société — facultatif</span>
-    <input id="soc" type="text" autocomplete="organization" placeholder="Nom de la société"></label>
+    <input id="soc" type="text" autocomplete="organization" placeholder="Nom de la société"
+           value="${ech(cli.soc || "")}"></label>
   <label class="champ"><span>Votre email</span>
-    <input id="mail" type="email" autocomplete="email" placeholder="vous@exemple.com"></label>
+    <input id="mail" type="email" autocomplete="email" placeholder="vous@exemple.com"
+           value="${ech(cli.mail || "")}"></label>
 
   <div class="engage">
     <p>Le fichier a été contrôlé par l'imprimerie et le résultat m'a été soumis.
@@ -6015,6 +6137,12 @@ function majLigne(r, p, dims) {
     const dv = calculerDevis(p, r, dims, etat);
     l.qte = etat.qte; l.montant = dv ? +dv.total.toFixed(2) : null;
   }
+  /* La reference de commande relie les fichiers d'un meme client. Sans
+     elle, le journal reste une liste de fichiers isoles et on ne peut ni
+     compter les commandes, ni remonter d'un fichier a sa commande en cas
+     de litige. */
+  l.commande = COMMANDE.ref || "";
+  l.client = (COMMANDE.client && COMMANDE.client.nom) || "";
   sauverJournal();
 }
 
@@ -6055,8 +6183,9 @@ function statistiques(depuis) {
 }
 
 function journalCsv() {
-  const cols = ["date","fichier","code","produit","famille","verdict","verdictFinal","typologie",
-                "corrige","actes","largRecu","hautRecu","largCmd","hautCmd","qte","montant","defauts"];
+  const cols = ["date","commande","client","fichier","code","produit","famille","verdict","verdictFinal",
+                "typologie","corrige","actes","largRecu","hautRecu","largCmd","hautCmd","qte","montant",
+                "defauts"];
   const esc = (v) => `"${String(v === null || v === undefined ? "" : v).replace(/"/g, '""')}"`;
   return [cols.join(";"), ...JOURNAL.map(l => cols.map(c =>
     esc(c === "typologie" ? typologie(l)
@@ -8181,7 +8310,7 @@ function afficher(r, p, nomFichier, corrige) {
       <button id="copier">${ico(ICO.telech)}Rapport atelier</button>
       <button id="rapClient">${ico(ICO.telech)}Rapport client</button>
       ${r.verdict !== "VERT" ? `<button id="bat">${ico(ICO.bat)}Éditer le bon à tirer</button>` : ""}
-      <button id="batClient">${ico(ICO.bat)}Bon à tirer à envoyer au client</button>
+      <button id="batClient">${ico(ICO.bat)}Préparer le bon à tirer client</button>
 
       ${(SOURCE_INIT && source !== SOURCE_INIT)
           ? `<button id="revenir">Revenir au fichier client</button>` : ""}
@@ -8407,14 +8536,21 @@ function afficher(r, p, nomFichier, corrige) {
   if ($("batClient")) $("batClient").onclick = async () => {
     const b = $("batClient");
     const av = b.textContent;
-    /* Le nom du client n'est demande QU'ICI : beaucoup de gens passent au
-       comptoir sans commander, le reclamer au depot serait un geste ajoute
-       pour rien. */
+    /* Le nom du client est demande ICI, a l'operateur : au depot ce serait
+       un geste ajoute pour rien, beaucoup de gens passent au comptoir sans
+       commander. */
+    if (!COMMANDE.lignes.length) {
+      alert("Aucun fichier dans la commande. Analysez au moins un fichier avant de générer le bon à tirer.");
+      return;
+    }
+    const cli = await demanderClient();
+    if (!cli) return;
     b.disabled = true; b.textContent = "Préparation…";
     try {
       const html = await pageBatClient(r, p, nomFichier);
-      await telecharger(new TextEncoder().encode(html),
-                        "BAT-" + (COMMANDE.ref || "commande") + ".html");
+      const nomBat = "BAT-" + (COMMANDE.ref || "commande") + ".html";
+      await telecharger(new TextEncoder().encode(html), nomBat);
+      apresBat(html, nomBat, cli);
     } catch (e) {
       alert("Le bon à tirer client n'a pas pu être préparé : " + (e.message || e));
     } finally { b.disabled = false; b.textContent = av; }
