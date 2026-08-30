@@ -782,7 +782,7 @@ a.batbtn.primaire:hover{filter:brightness(1.08)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-30c";
+const VERSION = "2026-08-30d";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -805,6 +805,13 @@ let SOURCE_INIT = null, PALETTE_INIT = null, NOM_INIT = null;
 /* n'est JAMAIS ecrit par une correction.                                  */
 /* ====================================================================== */
 let SOURCE_REF = null, PALETTE_REF = null;
+/* Les cases telles qu'elles ont ete appliquees. Depuis que la correction
+   repart du fichier client, l'atelier doit rester le RELEVE DES CHOIX, pas
+   l'etat du fichier corrige : sinon rouvrir l'atelier montre des options
+   « sans objet » (le format est deja bon, le fond perdu deja la), et le
+   clic suivant refait une correction SANS elles — tout le travail
+   precedent disparait. */
+let CHOIX_APPLIQUES = null;
 
 /* ====================================================================== */
 /* LA COMMANDE                                                            */
@@ -6821,7 +6828,7 @@ function relancer() {
   if (source !== SOURCE_INIT && SOURCE_INIT) {
     viderCachePdf();
     source = SOURCE_INIT; palette = PALETTE_INIT || palette; ROT_MANU = 0;
-    SOURCE_REF = SOURCE_INIT; PALETTE_REF = PALETTE_INIT || palette;
+    SOURCE_REF = SOURCE_INIT; PALETTE_REF = PALETTE_INIT || palette; CHOIX_APPLIQUES = null;
     apercu(source, 1).then((a) => { if (a) vues.avant = a; });
   }
   vues.apres = null; vues.apresA = null; vues.avantA = null;
@@ -6849,6 +6856,18 @@ function pastilles(c) {
 }
 
 function atelier(r, p, couleurs) {
+  /* Etat des cases : celui de la derniere application s'il y en a eu une.
+     Sans ca, rouvrir l'atelier apres correction presente toutes les cases
+     vides, et « Appliquer » repart du fichier client sans rien faire. */
+  const coche = (id) => {
+    if (!CHOIX_APPLIQUES) return "";
+    const m = { cMiseAuFormat: "miseAuFormat", cOrientation: "orientation",
+                cFondPerdu: "fondPerdu", cCentrer: "centrerVisuel", cOeillets: "oeillets" };
+    if (id === "cMarge") return (CHOIX_APPLIQUES.margeSecu > 0) ? " checked" : "";
+    if (id === "cBlanc") return (CHOIX_APPLIQUES.remplissage === "blanc") ? " checked" : "";
+    return (m[id] && CHOIX_APPLIQUES[m[id]]) ? " checked" : "";
+  };
+
   const K = r.codes || new Set();
   const echelleKo = K.has("ECHELLE") || r.ratioKo;
   const orientKo  = K.has("ORIENT");
@@ -6877,7 +6896,7 @@ function atelier(r, p, couleurs) {
   const decalMm = decal / 72 * 25.4 / (r.echelle || 1);
   const optCentre = (enc && decalMm > 1) ? `
     <div class="opt">
-      <input type="checkbox" id="cCentrer">
+      <input type="checkbox" id="cCentrer"${coche("cCentrer")}>
       <label for="cCentrer">Recentrer le visuel dans le format
         <small>Le dessin n'est pas au milieu de sa page : il y a environ
         ${decalMm.toFixed(0)} mm de blanc en trop d'un côté. On décale le visuel
@@ -6888,7 +6907,7 @@ function atelier(r, p, couleurs) {
 
   const optOeil = oeil ? `
     <div class="opt">
-      <input type="checkbox" id="cOeillets">
+      <input type="checkbox" id="cOeillets"${coche("cOeillets")}>
       <label for="cOeillets">Marquer l'emplacement des ${oeil.nb} œillets sur le fichier
         <small>Cercle au diamètre de la perforation et croix de centrage, trait fin. Le poinçonnage
         l'enlève, la rondelle couvre le reste : rien ne se voit sur le produit fini.</small></label>
@@ -6913,7 +6932,7 @@ function atelier(r, p, couleurs) {
      l'outil a examiné compte autant que ce qu'il propose. */
   const opt = (id, actif, titre, detail, extra = "", raison = "") => `
     <div class="opt${actif ? "" : " off"}">
-      <input type="checkbox" id="${id}"${actif ? "" : " disabled"}>
+      <input type="checkbox" id="${id}"${actif ? "" : " disabled"}${coche(id)}>
       <label for="${id}">${titre}<small>${detail}${
         actif ? "" : `<em class="sansobjet">${raison || "Sans objet sur ce fichier."}</em>`}</small></label>${extra}
     </div>`;
@@ -6966,12 +6985,13 @@ function atelier(r, p, couleurs) {
     ${optCentre}
     ${optOeil}
     <div class="opt">
-      <input type="checkbox" id="cMarge">
+      <input type="checkbox" id="cMarge"${coche("cMarge")}>
       <label for="cMarge">Dégager la marge de sécurité<small>Réduit le visuel pour éloigner son contenu du trait de coupe, et comble le pourtour de la même façon.</small></label>
       <input type="number" id="cMargeMm" value="${p.marge_secu_mm}" min="1" max="80" step="1" aria-label="Marge de sécurité en millimètres">
     </div>
     <div class="opt">
-      <input type="checkbox" id="cBlanc"${CHOIX_BLANC ? " checked" : ""}>
+      <input type="checkbox" id="cBlanc"${
+        CHOIX_APPLIQUES ? coche("cBlanc") : (CHOIX_BLANC ? " checked" : "")}>
       <label for="cBlanc">Combler en blanc plutôt qu'en couleur<small>À cocher si le support est destiné à rester blanc autour du visuel.</small></label>
     </div>
     ${bloquants.length ? `<div class="exclu"><b>Ce que la correction ne réglera pas :</b><br>${
@@ -8529,7 +8549,7 @@ function afficher(r, p, nomFichier, corrige) {
     </div>
     ${blocVerifs(r, p)}
     ${blocVerifNettete(r, p)}   <!-- repli : aucune bande a montrer -->
-    ${atelier(r, p, palette)}`;
+    ${atelier(vues.rAvant || r, p, PALETTE_REF || palette)}`;
 
   $("inspection").innerHTML = `
     ${blocDevis(p, r)}
@@ -8589,6 +8609,7 @@ function afficher(r, p, nomFichier, corrige) {
          produisent deux fois le meme fichier. */
       const ref = SOURCE_REF || source;
       const pal = PALETTE_REF || palette;
+      CHOIX_APPLIQUES = choix;
       const { octets, journal } = await corriger(ref, p, choix, pal, dimsAv);
       source = octets.buffer.slice(octets.byteOffset, octets.byteOffset + octets.byteLength);
       viderCachePdf();
@@ -8714,7 +8735,7 @@ function afficher(r, p, nomFichier, corrige) {
          correction, rotation, verifications tranchees, page affichee. */
       viderCachePdf();
       source = SOURCE_INIT; palette = PALETTE_INIT;
-      SOURCE_REF = SOURCE_INIT; PALETTE_REF = PALETTE_INIT;
+      SOURCE_REF = SOURCE_INIT; PALETTE_REF = PALETTE_INIT; CHOIX_APPLIQUES = null;
       PAGE_VUE = 1; VUE_COTE = 0; ROT_MANU = 0; CURSEUR = 50;
       reinitVerifs();
       vues.avant = await apercu(source, 1);
@@ -8766,7 +8787,7 @@ function reinit() {
   vues.avant = null; vues.apres = null; vues.rAvant = null; vues.nomAvant = null; vues.journal = null;
   vues.nbPages = 1; PAGE_VUE = 1; VUE_COTE = 0;
   SOURCE_INIT = null; PALETTE_INIT = null; NOM_INIT = null; ROT_MANU = 0; CHOIX_BLANC = false;
-  SOURCE_REF = null; PALETTE_REF = null;
+  SOURCE_REF = null; PALETTE_REF = null; CHOIX_APPLIQUES = null;
   ORIGINE = null; ANALYSE_DEMANDEE = false;
   /* Un nouveau fichier, un nouveau devis.
      devisMemo retient quantite, grammage, finitions et coefficients PAR
