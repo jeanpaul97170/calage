@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29n";
+const VERSION = "2026-08-29q";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -750,6 +750,19 @@ let pdfjsLib = null, pret = false, source = null, palette = null, dernierNom = n
 /* Le fichier corrige remplace « source » : sans copie, l'original est perdu
    et l'operateur ne peut plus revenir en arriere. */
 let SOURCE_INIT = null, PALETTE_INIT = null, NOM_INIT = null;
+/* ====================================================================== */
+/* LA REFERENCE DE CORRECTION                                             */
+/* ---------------------------------------------------------------------- */
+/* « Appliquer et recontroler » corrigeait le FICHIER COURANT et le        */
+/* remplacait par le resultat. Un deuxieme clic corrigeait donc un fichier */
+/* deja corrige : ajouter 2 mm de fond perdu deux fois en ajoutait 4, et   */
+/* le journal du bon a tirer ne decrivait plus que la derniere passe.      */
+/* SOURCE_REF est le fichier sur lequel une correction porte TOUJOURS :    */
+/* le fichier client, ou le fichier client pivote si l'operateur a demande */
+/* une rotation. Il est ecrit au depot, a la rotation et au retour ; il    */
+/* n'est JAMAIS ecrit par une correction.                                  */
+/* ====================================================================== */
+let SOURCE_REF = null, PALETTE_REF = null;
 let _dernierR = null, produitChange = false;
 const vues = { avant: null, apres: null, rAvant: null, nomAvant: null, journal: null };
 const dimsMemo = {};
@@ -1042,16 +1055,25 @@ async function zoneSecuriteAuPixel(buffer, refPt, margePt, noPage) {
 
   /* Emprise reelle de l'encre dans la page. Sert a detecter un cadrage
      incoherent : du vide d'un cote, du contenu coupe de l'autre. */
+  /* Seuil d'encre : 250, pas 235.
+     -----------------------------------------------------------------
+     A 235, un fond creme, ivoire ou gris tres clair — le fond de la
+     moitie des cartes de visite — etait compte comme du VIDE. L'outil
+     croyait voir un grand blanc en haut et rien en bas, et le recentrage
+     decalait une carte pourtant parfaitement centree.
+     Ce qui n'est pas du blanc de papier est de l'encre : le seuil doit
+     etre juste sous le blanc pur, pas a 8 % dessous. */
+  const SEUIL_ENCRE = 250;
   const seuilCol = 0.005;
   let ex0 = -1, ex1 = -1, ey0 = -1, ey1 = -1;
   for (let x = x0; x < x1; x++) {
     let n = 0;
-    for (let y = y0; y < y1; y++) if (g[y * W + x] < 235) n++;
+    for (let y = y0; y < y1; y++) if (g[y * W + x] < SEUIL_ENCRE) n++;
     if (n / (y1 - y0) > seuilCol) { if (ex0 < 0) ex0 = x; ex1 = x; }
   }
   for (let y = y0; y < y1; y++) {
     let n = 0;
-    for (let x = x0; x < x1; x++) if (g[y * W + x] < 235) n++;
+    for (let x = x0; x < x1; x++) if (g[y * W + x] < SEUIL_ENCRE) n++;
     if (n / (x1 - x0) > seuilCol) { if (ey0 < 0) ey0 = y; ey1 = y; }
   }
   if (ex0 >= 0 && ey0 >= 0) {
@@ -5984,10 +6006,10 @@ async function reconvertirImage(p) {
   o.natL = n.larg; o.natH = n.haut;
   o.cibleL = cL; o.cibleH = cH;
   source = await imageVersPdf(o.brut, o.genre, cL, cH);
-  SOURCE_INIT = source;
+  SOURCE_INIT = source; SOURCE_REF = source;
   viderCachePdf();
   palette = await couleursDuVisuel(source);
-  PALETTE_INIT = palette;
+  PALETTE_INIT = palette; PALETTE_REF = palette;
   vues.avant = await apercu(source, 1);
   vues.apres = null; vues.avantA = null; vues.apresA = null; vues.journal = null;
   ROT_MANU = 0;
@@ -6002,6 +6024,7 @@ function relancer() {
   if (source !== SOURCE_INIT && SOURCE_INIT) {
     viderCachePdf();
     source = SOURCE_INIT; palette = PALETTE_INIT || palette; ROT_MANU = 0;
+    SOURCE_REF = SOURCE_INIT; PALETTE_REF = PALETTE_INIT || palette;
     apercu(source, 1).then((a) => { if (a) vues.avant = a; });
   }
   vues.apres = null; vues.apresA = null; vues.avantA = null;
@@ -6099,8 +6122,16 @@ function atelier(r, p, couleurs) {
     </div>`;
 
   const d = dimsSaisies();
-  const cible = d ? `${d.larg} × ${d.haut} cm`
-    : p.regle_dim === "FIXE" ? `${p.larg_cm} × ${p.haut_cm} cm` : "format reçu";
+  /* Le format cible suit l'orientation commandee, comme partout ailleurs. */
+  const fcA = formatCible(p, d);
+  const cible = fcA ? `${fcA.larg} × ${fcA.haut} cm` : "format reçu";
+  /* L'operateur livre une PAGE, pas un format fini : le libelle doit dire
+     ce que la page va devenir. « 9 × 5,5 » etait juste au sens du metier
+     et faux au sens du geste — il livre du 9,4 × 5,9. */
+  const fpCm = p.fond_perdu_mm / 10;
+  const cibleLivree = fcA && fpCm > 0
+    ? `${(fcA.larg + fpCm).toFixed(1)} × ${(fcA.haut + fpCm).toFixed(1)} cm`
+    : null;
 
   return `
   <div class="atelier">
@@ -6115,10 +6146,12 @@ function atelier(r, p, couleurs) {
     </div>` : ""}
     ${pastilles(couleurs)}
     ${opt("cMiseAuFormat", echelleKo,
-          `Mettre au format fini (${cible})`,
-          r.ratioKo
+          cibleLivree ? `Mettre au format : page de ${cibleLivree}`
+                      : `Mettre au format fini (${cible})`,
+          (cibleLivree ? `Format fini ${cible}, plus ${p.fond_perdu_mm / 2} mm de fond perdu par bord. ` : "")
+          + (r.ratioKo
             ? "Le visuel garde ses proportions, il est centré à la plus grande taille possible dans le format, et le pourtour est comblé par la couleur de ses bords."
-            : "Mise à l'échelle uniforme. Les vecteurs restent nets, les images conservent leurs pixels, donc leur résolution baisse d'autant. Le recontrôle l'affichera.",
+            : "Mise à l'échelle uniforme. Les vecteurs restent nets, les images conservent leurs pixels, donc leur résolution baisse d'autant. Le recontrôle l'affichera."),
           "", "Le fichier est déjà à l'échelle du format commandé.")}
     ${opt("cOrientation", orientKo,
           `Pivoter en ${(r.orientVoulue || p.orientation || "PORTRAIT").toLowerCase()}`,
@@ -7714,23 +7747,34 @@ function afficher(r, p, nomFichier, corrige) {
        progression remplacait le DOM, donc $("cMiseAuFormat") renvoyait null
        et toutes les options passaient a false. La correction ne faisait
        plus rien, sans la moindre erreur. */
+    /* Les options DERIVEES de l'analyse doivent decrire la REFERENCE, pas
+       le fichier courant. Apres une premiere correction, `r` decrit le
+       fichier corrige : `fpIntegre` y est vrai, et un deuxieme clic serait
+       parti en « boites seules » en ignorant toutes les cases cochees.
+       `vues.rAvant` est l'analyse du fichier avant toute correction. */
+    const rRef = vues.rAvant || r;
     const choix = {
-      boitesSeules: !!r.fpIntegre,
+      boitesSeules: !!rRef.fpIntegre,
       miseAuFormat: !!($("cMiseAuFormat") && $("cMiseAuFormat").checked),
       orientation:  !!($("cOrientation") && $("cOrientation").checked),
       fondPerdu:    !!($("cFondPerdu")   && $("cFondPerdu").checked),
       margeSecu:    $("cMarge") && $("cMarge").checked ? parseFloat($("cMargeMm").value) || 0 : 0,
       oeillets:     !!($("cOeillets") && $("cOeillets").checked),
       centrerVisuel:!!($("cCentrer") && $("cCentrer").checked),
-      encre:        r.bande && r.bande.encre ? r.bande.encre : null,
-      secuMiniMm:   (r.secuMiniMm === undefined) ? null : r.secuMiniMm,
+      encre:        rRef.bande && rRef.bande.encre ? rRef.bande.encre : null,
+      secuMiniMm:   (rRef.secuMiniMm === undefined) ? null : rRef.secuMiniMm,
       remplissage:  ($("cBlanc") ? $("cBlanc").checked : CHOIX_BLANC) ? "blanc" : "couleur",
-      orientationCible: r.orientVoulue,
+      orientationCible: rRef.orientVoulue,
     };
     const dimsAv = dimsSaisies(), orientAv = orientationChoisie();
     PROG_ON = true; $("zone").innerHTML = ""; progres(15, "correction du fichier"); await souffler();
     try {
-      const { octets, journal } = await corriger(source, p, choix, palette, dimsAv);
+      /* DEPUIS LA REFERENCE, jamais depuis le fichier courant : decocher
+         une case defait vraiment la correction, et deux clics identiques
+         produisent deux fois le meme fichier. */
+      const ref = SOURCE_REF || source;
+      const pal = PALETTE_REF || palette;
+      const { octets, journal } = await corriger(ref, p, choix, pal, dimsAv);
       source = octets.buffer.slice(octets.byteOffset, octets.byteOffset + octets.byteLength);
       viderCachePdf();
       palette = await couleursDuVisuel(source);
@@ -7750,7 +7794,14 @@ function afficher(r, p, nomFichier, corrige) {
       noterCorrection(journal);
       const r2 = await controler(source, p, dimsAv, orientAv);
       r2.constats.unshift(["NOTE", "Fichier corrigé : " + journal.join(" ")]);
-      afficher(r2, p, nomFichier.replace(/\.(pdf|jpe?g|png)$/i, "") + "_CORRIGE.pdf", octets);
+      /* Le nom part TOUJOURS du fichier client, jamais du nom courant :
+         sinon chaque passe ajoutait un suffixe et on obtenait
+         « ..._CORRIGE_CORRIGE.pdf ». Deux tirages du meme fichier doivent
+         porter le meme nom — c'est la cle du rapprochement
+         email / RIP / facture. */
+      const base = (NOM_INIT || nomFichier).replace(/\.(pdf|jpe?g|png)$/i, "")
+                                           .replace(/(_CORRIGE)+$/i, "");
+      afficher(r2, p, base + "_CORRIGE.pdf", octets);
     } catch (e) {
       PROG_ON = false;
       alert("Correction impossible : " + e.message);
@@ -7792,6 +7843,10 @@ function afficher(r, p, nomFichier, corrige) {
                                        PALETTE_INIT && PALETTE_INIT.dominante);
       viderCachePdf();
       palette = await couleursDuVisuel(source);
+      /* La rotation est le seul geste qui deplace la reference : une
+         correction doit ensuite partir du fichier PIVOTE, sinon elle
+         annulerait la rotation. */
+      SOURCE_REF = source; PALETTE_REF = palette;
       PAGE_VUE = 1; VUE_COTE = 0; reinitVerifs();
       vues.avant = await apercu(source, 1);
       vues.apres = null; vues.journal = null;
@@ -7811,6 +7866,7 @@ function afficher(r, p, nomFichier, corrige) {
          correction, rotation, verifications tranchees, page affichee. */
       viderCachePdf();
       source = SOURCE_INIT; palette = PALETTE_INIT;
+      SOURCE_REF = SOURCE_INIT; PALETTE_REF = PALETTE_INIT;
       PAGE_VUE = 1; VUE_COTE = 0; ROT_MANU = 0; CURSEUR = 50;
       reinitVerifs();
       vues.avant = await apercu(source, 1);
@@ -7862,7 +7918,14 @@ function reinit() {
   vues.avant = null; vues.apres = null; vues.rAvant = null; vues.nomAvant = null; vues.journal = null;
   vues.nbPages = 1; PAGE_VUE = 1; VUE_COTE = 0;
   SOURCE_INIT = null; PALETTE_INIT = null; NOM_INIT = null; ROT_MANU = 0; CHOIX_BLANC = false;
+  SOURCE_REF = null; PALETTE_REF = null;
   ORIGINE = null; ANALYSE_DEMANDEE = false;
+  /* Un nouveau fichier, un nouveau devis.
+     devisMemo retient quantite, grammage, finitions et coefficients PAR
+     PRODUIT, et survivait d'un client au suivant : 1 000 cartes en 300 g
+     avec coins arrondis se reportaient sur le fichier d'apres, et le
+     montant partait dans le nom du fichier, le devis et le bon a tirer. */
+  for (const k of Object.keys(devisMemo)) delete devisMemo[k];
   viderCacheBmp();
   reinitVerifs();
   let bandeau = "";
@@ -8279,6 +8342,7 @@ async function traiter(f) {
       try { await rendrePage(source, besoinRaster(), 1); } catch (e) {}
       palette = await couleursDuVisuel(source);
       SOURCE_INIT = source; PALETTE_INIT = palette; NOM_INIT = f.name;
+      SOURCE_REF = source; PALETTE_REF = palette;
       progres(36, "aperçu");
       await souffler();
       PAGE_VUE = 1; VUE_COTE = 0; ROT_MANU = 0;
