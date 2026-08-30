@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29v";
+const VERSION = "2026-08-29w";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -1248,7 +1248,8 @@ async function zoneSecuriteAuPixel(buffer, refPt, margePt, noPage) {
 function sondesStructure(doc) {
   const R = {
     surimpression: false, surimpressionOPM: false,
-    calques: [], calquesRepere: [], calquesMasques: [],
+    calques: [], calquesRepere: [], calquesMasques: [], calquesImprimes: [],
+    encreInvisible: 0, texteInvisible: false,
     espaces: {}, imagesRVB: 0, imagesCMJN: 0, imagesGris: 0, imagesAutre: 0,
     filetsFins: [], annotations: 0, champs: 0, chiffre: false,
   };
@@ -1320,12 +1321,88 @@ function sondesStructure(doc) {
     }
   }
 
-  /* --- calques masques a l'ouverture --- */
+  /* ------------------------------------------------------------------ */
+  /* CE QUI NE SE VOIT PAS A L'ECRAN                                     */
+  /* ------------------------------------------------------------------ */
+  /* Trois facons d'etre invisible a l'ecran et present sur le tirage :   */
+  /*  1. opacite zero (/ca ou /CA a 0 dans un ExtGState)                  */
+  /*  2. mode de rendu de texte 3 (« 3 Tr » : trace sans peindre)         */
+  /*  3. calque masque a l'ecran mais marque pour l'impression            */
+  /* Aucune des trois ne se diagnostique a l'oeil : c'est precisement le  */
+  /* genre de defaut que l'outil doit attraper a la place de l'operateur. */
+
+  /* 1 · encre a opacite nulle.
+     Les ExtGState sont souvent des dictionnaires DIRECTS dans les
+     ressources de page : `enumerateIndirectObjects` ne les voit pas. On
+     parcourt donc les deux, sinon la sonde rate le cas le plus courant. */
+  const testerGS = (g) => {
+    if (!g || !g.get) return;
+    for (const cle of ["ca", "CA"]) {
+      try {
+        const v = ctx.lookup(g.get(PDFLib.PDFName.of(cle)));
+        if (v && v.asNumber && v.asNumber() === 0) { R.encreInvisible++; return; }
+      } catch (e) {}
+    }
+  };
+  for (const [, brut] of ctx.enumerateIndirectObjects()) {
+    const obj = dictDe(brut);
+    if (!obj) continue;
+    let t = "";
+    try { t = nom(obj.get(PDFLib.PDFName.of("Type"))); } catch (e) { continue; }
+    if (t === "/ExtGState") testerGS(obj);
+  }
+  try {
+    for (const pg of doc.getPages()) {
+      const res = pg.node.Resources();
+      const gs = res && res.get ? ctx.lookup(res.get(PDFLib.PDFName.of("ExtGState"))) : null;
+      if (!gs || !gs.keys) continue;
+      for (const k of gs.keys()) testerGS(ctx.lookup(gs.get(k)));
+    }
+  } catch (e) {}
+
+  /* 2 · texte en mode de rendu 3, lu dans les flux de contenu */
+  try {
+    for (const pg of doc.getPages()) {
+      let flux = [];
+      try {
+        const c = pg.node.normalizedEntries().Contents;
+        flux = c && c.asArray ? c.asArray() : (c ? [c] : []);
+      } catch (e) {}
+      for (const ref of flux) {
+        let st = null;
+        try { st = ctx.lookup(ref); } catch (e) {}
+        if (!st || !st.getContents) continue;
+        let txt = "";
+        try { txt = new TextDecoder("latin1").decode(st.getContents()); } catch (e) { continue; }
+        /* « 3 Tr » ou « 7 Tr » : trace sans peindre. Le 7 sert au detourage. */
+        if (/(^|[\s])[37]\s+Tr([\s]|$)/.test(txt)) R.texteInvisible = true;
+      }
+    }
+  } catch (e) {}
+
+  /* 3 · calques : masques a l'ecran, et lesquels sont marques imprimables */
   try {
     const cat = ctx.lookup(doc.catalog.get(PDFLib.PDFName.of("OCProperties")));
     const d = cat && cat.get ? ctx.lookup(cat.get(PDFLib.PDFName.of("D"))) : null;
     const off = d && d.get ? ctx.lookup(d.get(PDFLib.PDFName.of("OFF"))) : null;
-    if (off && off.size) R.calquesMasques = new Array(off.size()).fill("masqué");
+    if (off && off.size) {
+      R.calquesMasques = new Array(off.size()).fill("masqué");
+      for (let i = 0; i < off.size(); i++) {
+        let g = null;
+        try { g = ctx.lookup(off.get(i)); } catch (e) { continue; }
+        if (!g || !g.get) continue;
+        let lib = "";
+        try { lib = texte(g.get(PDFLib.PDFName.of("Name"))); } catch (e) {}
+        let imprime = false;
+        try {
+          const u = ctx.lookup(g.get(PDFLib.PDFName.of("Usage")));
+          const pr = u && u.get ? ctx.lookup(u.get(PDFLib.PDFName.of("Print"))) : null;
+          const et = pr && pr.get ? nom(pr.get(PDFLib.PDFName.of("PrintState"))) : "";
+          if (et === "/ON") imprime = true;
+        } catch (e) {}
+        if (imprime) R.calquesImprimes.push(lib || "sans nom");
+      }
+    }
   } catch (e) {}
 
   try { R.chiffre = !!doc.isEncrypted; } catch (e) {}
@@ -3163,6 +3240,28 @@ async function controler(buffer, p, dims, orientation) {
       constats.push(["NOTE", `Fichier à calques (${sd.calques.length}`
         + (sd.calquesMasques.length ? `, dont ${sd.calquesMasques.length} masqué${sd.calquesMasques.length > 1 ? "s" : ""} à l'ouverture` : "")
         + `). Ce qui est masqué à l'écran peut être imprimé selon le RIP : ${sd.calques.slice(0, 4).join(", ")}.`]);
+
+    /* --- ce qui ne se voit pas a l'ecran mais part en machine --- */
+    if (sd.calquesImprimes.length)
+      dire("ORANGE",
+        `Un calque est masqué à l'écran mais marqué pour être imprimé : il sortira sur le tirage `
+        + `alors que personne ne le voit dans le fichier.`,
+        `Ouvrir le fichier, afficher le calque et vérifier ce qu'il contient. Demander au client `
+        + `un export sans les calques masqués.`,
+        `calque : « ${sd.calquesImprimes.join(" », « ")} »`, "CALQUE_IMPRIME");
+
+    if (sd.texteInvisible)
+      dire("ORANGE",
+        `Le fichier contient du texte tracé sans être peint : invisible à l'écran, certains RIP `
+        + `l'impriment quand même.`,
+        `Souvent la couche de reconnaissance de texte d'un scan, ou un calque masqué exporté. `
+        + `Demander un export à plat.`,
+        `mode de rendu de texte 3 ou 7`, "TEXTE_INVISIBLE");
+
+    if (sd.encreInvisible)
+      constats.push(["NOTE", `Le fichier contient ${sd.encreInvisible} élément(s) à opacité nulle. `
+        + `Ils ne doivent rien imprimer, mais un aplatissement de transparence mal fait peut les `
+        + `faire réapparaître. À signaler si le tirage part chez un sous-traitant.`, "", "", "ENCRE_ZERO"]);
 
     if (sd.imagesRVB && !sd.imagesCMJN)
       dire("ORANGE",
@@ -6940,7 +7039,7 @@ const AXES = [
     mots: /bord|marge|coupe|pli|reliure|œillet|oeillet|sécurité|lisible|plus petit corps/i,
     mot: { VERT: "respectés", ORANGE: "limite", ROUGE: "à risque" } },
   { cle: "couleurs", titre: "Couleurs et structure",
-    codes: ["RVB"],
+    codes: ["RVB", "CALQUE_IMPRIME", "TEXTE_INVISIBLE", "ENCRE_ZERO"],
     mots: /couleur|RVB|CMJN|surimpression|par-dessus|transparence|police|calque|formulaire|fusion/i,
     mot: { VERT: "conformes", ORANGE: "à signaler", ROUGE: "à revoir" } },
 ];
