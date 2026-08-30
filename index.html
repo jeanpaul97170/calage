@@ -740,7 +740,7 @@ table.grille td.txt input{font-family:var(--police-titre)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-29s";
+const VERSION = "2026-08-29u";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -843,6 +843,45 @@ async function lireImages(page) {
     }
   }
   return out;
+}
+
+/* ==================================================================== */
+/* EMBARQUER UNE PAGE SOURCE — regle unique                             */
+/* -------------------------------------------------------------------- */
+/* `embedPdf` construit le Form XObject sans tenir compte de l'origine   */
+/* de la boite. Sur un PDF dont la MediaBox ne commence pas a [0, 0] —   */
+/* Canva exporte volontiers du [0, 7.92, 252, 151.92] — le contenu se    */
+/* retrouve decale, et ce qui depasse est COUPE : on perdait 2,79 mm de  */
+/* vrai visuel, sans que rien ne le signale.                             */
+/* En passant la boite explicitement, pdf-lib pose la bonne matrice : le */
+/* contenu entier tombe a sa place et le visuel est centre.              */
+/* Verifie sur NET_carte_de_visite.pdf : 1,78 mm de chaque cote au lieu  */
+/* de 1,78 / 4,57, et le visuel passe de 48,68 a 51,48 mm.               */
+/* ==================================================================== */
+async function embarquerPages(out, src) {
+  const pages = src.getPages();
+  const embs = [];
+  for (const pg of pages) {
+    let b = null;
+    try { b = pg.getMediaBox(); } catch (e) { b = null; }
+    if (b && (Math.abs(b.x) > 0.01 || Math.abs(b.y) > 0.01)) {
+      embs.push(await out.embedPage(pg, { left: b.x, bottom: b.y,
+                                          right: b.x + b.width, top: b.y + b.height }));
+    } else {
+      embs.push(await out.embedPage(pg));
+    }
+  }
+  return embs;
+}
+
+/* Le decalage est-il assez marque pour meriter une ligne de journal ? */
+function origineDecalee(pg) {
+  try {
+    const b = pg.getMediaBox();
+    if (!b) return null;
+    if (Math.abs(b.x) < 0.01 && Math.abs(b.y) < 0.01) return null;
+    return { x: b.x, y: b.y };
+  } catch (e) { return null; }
 }
 
 function lireBoites(page) {
@@ -3343,11 +3382,14 @@ async function marquerSeul(buffer, p, dims) {
   const doc = await PDFLib.PDFDocument.load(new Uint8Array(buffer.slice(0)), { ignoreEncryption: true });
   for (const pg of doc.getPages()) {
     const { width, height } = pg.getSize();
+    /* Par defaut la page, DANS SON REPERE : une boite qui ne commence pas
+       a zero posait les œillets a cote. */
     let tx = 0, ty = 0, tl = width, th = height;
+    try { const m = pg.getMediaBox(); if (m) { tx = m.x || 0; ty = m.y || 0; } } catch (e) {}
     try {
       const t = pg.getTrimBox();
       if (t && t.width > 0 && t.height > 0) { tx = t.x; ty = t.y; tl = t.width; th = t.height; }
-    } catch (e) { /* pas de TrimBox : on prend la page */ }
+    } catch (e) { /* pas de TrimBox : on garde la page */ }
     marquerOeillets(pg, oeil, tx, ty, tl, th);
   }
   const o = await doc.save();
@@ -3366,12 +3408,20 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     const jrn = [`Traits de coupe déclarés à ${p.fond_perdu_mm / 2} mm des bords. Le visuel n'a pas été touché.`];
     for (const pg of src.getPages()) {
       const { width, height } = pg.getSize();
-      pg.setMediaBox(0, 0, width, height);
-      pg.setBleedBox(0, 0, width, height);
-      pg.setTrimBox(d, d, width - 2*d, height - 2*d);
-      pg.setArtBox(d, d, width - 2*d, height - 2*d);
+      /* L'ORIGINE DE LA BOITE EST CONSERVEE.
+         Ecrire setMediaBox(0, 0, ...) sur un fichier dont la boite commence
+         a [0, 7.92] deplace le cadre SANS deplacer le dessin : le contenu
+         se retrouve decale et une bande de meme largeur sort de la page.
+         Le fichier est conforme, on ne touche a rien — on declare les
+         boites dans SON repere, pas dans un autre. */
+      let bx = 0, by = 0;
+      try { const b = pg.getMediaBox(); if (b) { bx = b.x || 0; by = b.y || 0; } } catch (e) {}
+      pg.setMediaBox(bx, by, width, height);
+      pg.setBleedBox(bx, by, width, height);
+      pg.setTrimBox(bx + d, by + d, width - 2*d, height - 2*d);
+      pg.setArtBox(bx + d, by + d, width - 2*d, height - 2*d);
       if (opt.oeillets && oeil)
-        marquerOeillets(pg, oeil, d, d, width - 2*d, height - 2*d);
+        marquerOeillets(pg, oeil, bx + d, by + d, width - 2*d, height - 2*d);
     }
     if (opt.oeillets && oeil) jrn.push(`Emplacement des ${oeil.nb} œillets marqué sur le fichier.`);
     return { octets: await src.save(), journal: jrn };
@@ -3380,7 +3430,7 @@ async function corriger(buffer, p, opt, couleurs, dims) {
   const out = await PDFLib.PDFDocument.create();
   /* Portee fichier, pas page : le journal dit une fois ce qui a ete fait. */
   let aCouvert = false, motifCouvre = "", motifOrigine = "", decalSignale = false;
-  const pages = await out.embedPdf(src, src.getPageIndices());
+  const pages = await embarquerPages(out, src);
 
   const journal = [];
   const bleed = opt.fondPerdu ? MM(p.fond_perdu_mm / 2) : 0;   // valeur du référentiel = total, donc moitié par bord
@@ -3416,16 +3466,15 @@ async function corriger(buffer, p, opt, couleurs, dims) {
     /* On soustrait donc l'origine a chaque dessin. Sur une boite normale  */
     /* elle vaut 0 et rien ne change : la regle est sans effet de bord.    */
     /* ================================================================== */
-    const bOrig = (bsrc && bsrc.media) ? bsrc.media : null;
-    const orgX = bOrig ? (bOrig[0] || 0) : 0;
-    const orgY = bOrig ? (bOrig[1] || 0) : 0;
-    if ((Math.abs(orgX) > 0.01 || Math.abs(orgY) > 0.01) && !decalSignale) {
+    const dec = origineDecalee(pagesSrc[iP]);
+    if (dec && !decalSignale) {
       decalSignale = true;
-      motifOrigine = `Repère du fichier client décalé de `
-        + `${Math.abs(orgX) > 0.01 ? (orgX / 72 * 25.4).toFixed(2) + " mm horizontalement" : ""}`
-        + `${Math.abs(orgX) > 0.01 && Math.abs(orgY) > 0.01 ? " et " : ""}`
-        + `${Math.abs(orgY) > 0.01 ? (orgY / 72 * 25.4).toFixed(2) + " mm verticalement" : ""}`
-        + ` (boîte à l'origine ${orgX} ${orgY}) : compensé, le visuel est replacé au centre.`;
+      motifOrigine = `Boîte du fichier client décalée de `
+        + `${Math.abs(dec.x) > 0.01 ? (dec.x / 72 * 25.4).toFixed(2) + " mm horizontalement" : ""}`
+        + `${Math.abs(dec.x) > 0.01 && Math.abs(dec.y) > 0.01 ? " et " : ""}`
+        + `${Math.abs(dec.y) > 0.01 ? (dec.y / 72 * 25.4).toFixed(2) + " mm verticalement" : ""}`
+        + `. Le visuel est repris en entier et recentré ; sans cela une bande `
+        + `de même largeur aurait été coupée.`;
     }
     /* Garde-fou : ne jamais pivoter un fichier dont le sens correspond deja
        a celui du produit. Une case restee cochee d'une correction a l'autre
@@ -3562,14 +3611,11 @@ async function corriger(buffer, p, opt, couleurs, dims) {
         if (w > 0.5 && h > 0.5) pg.drawRectangle({ x, y, width:w, height:h, color: RGB(col) });
     }
 
-    /* L'origine de la boite source est retranchee, a l'echelle. Sur une
-       page pivotee de 90°, les axes sont echanges : l'origine X agit sur
-       le Y du resultat, et l'origine Y sur le X, en sens inverse. */
-    if (pivote)
-      pg.drawPage(emb, { x: ox + posL + orgY * k, y: oy - orgX * k,
-                         xScale: k, yScale: k, rotate: PDFLib.degrees(90) });
-    else
-      pg.drawPage(emb, { x: ox - orgX * k, y: oy - orgY * k, xScale: k, yScale: k });
+    /* Plus aucune compensation : la boite est deja normalisee a
+       l'embarquement. */
+    if (pivote) pg.drawPage(emb, { x: ox + posL, y: oy, xScale: k, yScale: k,
+                                   rotate: PDFLib.degrees(90) });
+    else        pg.drawPage(emb, { x: ox, y: oy, xScale: k, yScale: k });
 
     pg.setMediaBox(0, 0, pageLf, pageHf);
     pg.setBleedBox(0, 0, pageLf, pageHf);
@@ -6306,21 +6352,14 @@ async function appliquerRotation(buffer, angle, p, dims, fond) {
   if (!angle) return buffer;
   const src = await PDFLib.PDFDocument.load(buffer, { ignoreEncryption: true });
   const out = await PDFLib.PDFDocument.create();
-  const embs = await out.embedPdf(src, src.getPageIndices());
+  const embs = await embarquerPages(out, src);
   const MMPT = (cm) => cm / 2.54 * 72;
   const cible = (dims && dims.larg > 0 && dims.haut > 0)
     ? { L: MMPT(dims.larg), H: MMPT(dims.haut) }
     : (function () { const c = formatCible(p, null);
                      return c ? { L: MMPT(c.larg), H: MMPT(c.haut) } : null; })();
 
-  const pgsSrc = src.getPages();
-  for (let i = 0; i < embs.length; i++) {
-    const emb = embs[i];
-    /* Meme regle qu'a la correction : une boite source dont l'origine n'est
-       pas [0, 0] decale tout le contenu. On la retranche. */
-    let bo = null;
-    try { const b = lireBoites(pgsSrc[i]); bo = b && b.media ? b.media : null; } catch (e) {}
-    const orgX = bo ? (bo[0] || 0) : 0, orgY = bo ? (bo[1] || 0) : 0;
+  for (const emb of embs) {
     const w = emb.width, h = emb.height;
     const quart = (angle === 90 || angle === 270);
     /* emprise du visuel une fois tourne */
@@ -6337,14 +6376,9 @@ async function appliquerRotation(buffer, angle, p, dims, fond) {
                          ? PDFLib.rgb(fond[0]/255, fond[1]/255, fond[2]/255)
                          : PDFLib.rgb(1, 1, 1) });
     const opts = { xScale: k, yScale: k, rotate: PDFLib.degrees(angle) };
-    /* La compensation suit la rotation : a 90° les axes sont echanges,
-       a 180° ils sont inverses, a 270° echanges dans l'autre sens. */
-    if (angle === 90)
-      pg.drawPage(emb, Object.assign({ x: ox + ol + orgY * k, y: oy - orgX * k }, opts));
-    else if (angle === 180)
-      pg.drawPage(emb, Object.assign({ x: ox + ol + orgX * k, y: oy + oh + orgY * k }, opts));
-    else
-      pg.drawPage(emb, Object.assign({ x: ox - orgY * k, y: oy + oh + orgX * k }, opts));
+    if (angle === 90)       pg.drawPage(emb, Object.assign({ x: ox + ol, y: oy }, opts));
+    else if (angle === 180) pg.drawPage(emb, Object.assign({ x: ox + ol, y: oy + oh }, opts));
+    else                    pg.drawPage(emb, Object.assign({ x: ox, y: oy + oh }, opts));
     pg.setMediaBox(0, 0, pl, ph);
   }
   const o = await out.save();
