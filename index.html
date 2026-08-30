@@ -689,6 +689,16 @@ a.batbtn.primaire:hover{filter:brightness(1.08)}
 .batbtn.contour:hover{background:var(--fond);border-color:var(--marque);color:var(--marque)}
 .batbtn small{display:block;font-weight:400;font-size:12px;color:var(--texteFaible);margin-top:3px}
 .batpied{margin:16px 0 0;font-size:12px;color:var(--texteFaible);line-height:1.5}
+#majBandeau{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:9000;
+  display:flex;align-items:center;gap:12px;background:var(--marque);color:#fff;
+  padding:11px 12px 11px 18px;border-radius:26px;box-shadow:0 6px 22px rgba(0,0,0,.26);
+  font-family:var(--police-titre);font-size:13.5px;font-weight:600}
+#majBandeau button{border:0;border-radius:18px;padding:8px 15px;cursor:pointer;
+  font-family:var(--police-titre);font-size:13px;font-weight:700;background:#fff;color:var(--marque)}
+#majBandeau button:hover{background:rgba(255,255,255,.88)}
+#majBandeau .plus-tard{background:transparent;color:rgba(255,255,255,.85);font-weight:500;padding:8px 6px}
+#majBandeau .plus-tard:hover{background:transparent;color:#fff;text-decoration:underline}
+@media(max-width:520px){#majBandeau{left:12px;right:12px;transform:none;justify-content:space-between}}
 .cmd-t{color:#fff;font-weight:600}
 .cmd-t i{font-style:normal;font-weight:400;color:rgba(255,255,255,.6);margin-left:4px}
 .cmd button{background:rgba(255,255,255,.14);border:0;border-radius:16px;color:#fff;
@@ -772,7 +782,7 @@ a.batbtn.primaire:hover{filter:brightness(1.08)}
 /* ------------------------------------------------------------------ */
 /* Moteur : pdf.js pour le contenu, pdf-lib pour la structure          */
 /* ------------------------------------------------------------------ */
-const VERSION = "2026-08-30a";
+const VERSION = "2026-08-30c";
 const CDN_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/";
 const CDN_PDFLIB = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
 const PT_CM = 72 / 2.54;
@@ -4320,10 +4330,28 @@ table.lig .n{text-align:right;white-space:nowrap}
 table.lig tfoot td{border-bottom:0;font-weight:700;padding-top:12px}
 .reserve-tarif{margin:12px 0 0;font-size:13px;color:var(--gris)}
 .pour{margin:0 0 14px;font-size:14.5px}
-.ap{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px}
-.ap figure{margin:0}
-.ap figcaption{font-size:12.5px}
-@media(max-width:560px){.ap{grid-template-columns:1fr}}
+.volet{margin:0 0 8px}
+.v-cadre{position:relative;overflow:hidden;border:1px solid var(--trait);border-radius:6px;
+  background:#fff;line-height:0;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.v-cadre img{width:100%;height:auto;display:block;pointer-events:none}
+.v-avant{position:absolute;inset:0;width:50%;overflow:hidden;border-right:1px solid rgba(0,0,0,.06)}
+.v-avant img{width:auto;height:100%;max-width:none}
+.v-trait{position:absolute;top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px;
+  background:var(--marque);pointer-events:none}
+.v-poignee{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:44px;height:44px;border-radius:50%;background:var(--marque);
+  box-shadow:0 2px 10px rgba(0,0,0,.3);pointer-events:auto;cursor:ew-resize;touch-action:none}
+.v-poignee::before,.v-poignee::after{content:"";position:absolute;top:50%;width:0;height:0;
+  border-top:6px solid transparent;border-bottom:6px solid transparent;margin-top:-6px}
+.v-poignee::before{left:11px;border-right:7px solid #fff}
+.v-poignee::after{right:11px;border-left:7px solid #fff}
+.v-poignee:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.v-lib{position:absolute;top:9px;font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:#fff;background:rgba(26,26,26,.72);padding:4px 9px;
+  border-radius:12px;line-height:1.3;pointer-events:none}
+.v-lib-g{left:9px}
+.v-lib-d{right:9px}
+.v-dims{display:flex;justify-content:space-between;margin-top:6px;font-size:12.5px;color:var(--gris)}
 .apnote{margin:0 0 18px;font-size:13px;color:var(--gris);line-height:1.5}
 .choixintro{margin:0 0 16px;font-size:14.5px;color:var(--gris)}
 .voie{border-radius:12px;padding:16px;margin-bottom:12px}
@@ -4377,14 +4405,22 @@ ${lignes.map((l, li) => `<section>
   <p style="margin:0 0 14px;font-size:14.5px">Fichier <b>${ech(l.fichier)}</b> ·
      ${ech(l.format)} · ${ech(l.qte)} exemplaire${l.qte > 1 ? "s" : ""}.
      C'est ce fichier qui partira en production.</p>
-  ${l.avant ? `<div class="ap">
-      <figure><img src="${l.avant.url}" alt="Votre fichier">
-        <figcaption><b>Votre fichier</b> · ${ech(l.avant.dim)}</figcaption></figure>
-      <figure><img src="${l.visuels[0] ? l.visuels[0].url : ""}" alt="Après préparation">
-        <figcaption><b>Après préparation</b> · ${ech(l.visuels[0] ? l.visuels[0].dim : "")}</figcaption></figure>
+  ${l.avant ? `<div class="volet" data-volet>
+      <div class="v-cadre">
+        <img class="v-apres" src="${l.visuels[0] ? l.visuels[0].url : ""}" alt="Après préparation" draggable="false">
+        <div class="v-avant"><img src="${l.avant.url}" alt="Votre fichier" draggable="false"></div>
+        <div class="v-trait"><span class="v-poignee" role="slider" tabindex="0"
+             aria-label="Faire glisser pour comparer" aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="50"></span></div>
+        <span class="v-lib v-lib-g">Votre fichier</span>
+        <span class="v-lib v-lib-d">Après préparation</span>
+      </div>
+      <div class="v-dims"><span>${ech(l.avant.dim)}</span>
+        <span>${ech(l.visuels[0] ? l.visuels[0].dim : "")}</span></div>
     </div>
-    <p class="apnote">À gauche le fichier que vous nous avez remis, à droite celui préparé pour
-       l'impression : mis au format, avec la marge de coupe. Le dessin n'est ni étiré ni déformé.</p>` : ""}
+    <p class="apnote">Faites glisser le trait pour comparer. À gauche le fichier que vous nous avez
+       remis, à droite celui préparé pour l'impression : mis au format, avec la marge de coupe.
+       Le dessin n'est ni étiré ni déformé.</p>` : ""}
   ${(l.avant ? l.visuels.slice(1) : l.visuels).map((v) => `<figure><img src="${v.url}" alt="${ech(v.lib || "Visuel")}">
      <figcaption>${ech(v.lib)}${v.lib ? " · " : ""}${ech(v.dim)}</figcaption></figure>`).join("")}
   ${l.reserves.length ? `<div class="pts">
@@ -4474,6 +4510,57 @@ ${lignes.map((l, li) => `<section>
       lignes: lignes.map((l) => ({ produit: l.produit, code: l.code, fichier: l.fichier,
                                    format: l.format, qte: l.qte, montant: l.montant,
                                    reserves: l.reserves })) })};
+  /* Comparateur a volet — souris, doigt et clavier.
+     Le fichier client et le fichier prepare n'ont ni la meme taille ni le
+     meme cadrage : l'image de gauche est calee sur la HAUTEUR du cadre et
+     recadree, sinon le trait revelerait deux visuels decales et le client
+     ne comprendrait pas ce qu'il compare. */
+  [].slice.call(document.querySelectorAll('[data-volet]')).forEach(function(v){
+    var cadre = v.querySelector('.v-cadre');
+    var avant = v.querySelector('.v-avant');
+    var img   = avant.querySelector('img');
+    var trait = v.querySelector('.v-trait');
+    var poig  = v.querySelector('.v-poignee');
+    function caler(){
+      img.style.width = cadre.clientWidth + 'px';
+      img.style.height = cadre.clientHeight + 'px';
+      img.style.objectFit = 'cover';
+      img.style.maxWidth = 'none';
+    }
+    function poser(pc){
+      pc = Math.max(0, Math.min(100, pc));
+      avant.style.width = pc + '%';
+      trait.style.left = pc + '%';
+      poig.setAttribute('aria-valuenow', Math.round(pc));
+    }
+    function depuis(x){
+      var r = cadre.getBoundingClientRect();
+      poser((x - r.left) / r.width * 100);
+    }
+    var actif = false;
+    cadre.addEventListener('pointerdown', function(e){
+      actif = true; cadre.setPointerCapture(e.pointerId); depuis(e.clientX); e.preventDefault();
+    });
+    cadre.addEventListener('pointermove', function(e){ if (actif) depuis(e.clientX); });
+    ['pointerup','pointercancel'].forEach(function(t){
+      cadre.addEventListener(t, function(e){
+        actif = false;
+        try { cadre.releasePointerCapture(e.pointerId); } catch (err) {}
+      });
+    });
+    poig.addEventListener('keydown', function(e){
+      var n = parseFloat(poig.getAttribute('aria-valuenow')) || 50;
+      if (e.key === 'ArrowLeft')  { poser(n - 4); e.preventDefault(); }
+      if (e.key === 'ArrowRight') { poser(n + 4); e.preventDefault(); }
+      if (e.key === 'Home') { poser(0); e.preventDefault(); }
+      if (e.key === 'End')  { poser(100); e.preventDefault(); }
+    });
+    var ap = v.querySelector('.v-apres');
+    if (ap.complete) caler(); else ap.addEventListener('load', caler);
+    window.addEventListener('resize', caler);
+    poser(50);
+  });
+
   var res = [].slice.call(document.querySelectorAll('.res'));
   var eng = document.getElementById('engage');
   var nom = document.getElementById('nom');
@@ -9272,8 +9359,47 @@ chargerMoteur().catch(() => {
   $("etatMoteur").textContent = "moteur indisponible, vérifier la connexion";
 });
 
+/* ==================================================================== */
+/* MISE A JOUR — le signal vient a l'operateur                          */
+/* -------------------------------------------------------------------- */
+/* Entre le depot d'une version et le moment ou elle tourne, il y a le   */
+/* cache HTTP de l'hebergeur (dix minutes chez GitHub Pages), le CDN, et */
+/* l'application installee qui ne repasse pas par le navigateur.         */
+/* Personne ne pense a lire le numero de version en haut a droite. On    */
+/* verifie donc a intervalle regulier, et quand une nouvelle version est */
+/* prete on le DIT, avec un bouton pour l'appliquer.                     */
+/* ==================================================================== */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  navigator.serviceWorker.register("sw.js").then((reg) => {
+    const proposer = () => {
+      if ($("majBandeau")) return;
+      const d = document.createElement("div");
+      d.id = "majBandeau";
+      d.innerHTML = `<span>Une nouvelle version de Calage est prête.</span>`
+        + `<button id="majOui">Recharger</button>`
+        + `<button id="majNon" class="plus-tard">Plus tard</button>`;
+      document.body.appendChild(d);
+      $("majOui").onclick = () => location.reload();
+      $("majNon").onclick = () => d.remove();
+    };
+    /* Une version deja en attente : on le signale tout de suite. */
+    if (reg.waiting) proposer();
+    reg.addEventListener("updatefound", () => {
+      const nouveau = reg.installing;
+      if (!nouveau) return;
+      nouveau.addEventListener("statechange", () => {
+        /* « installed » avec un controleur en place = une version remplace
+           celle qui tourne. Sans controleur, c'est la premiere visite. */
+        if (nouveau.state === "installed" && navigator.serviceWorker.controller) proposer();
+      });
+    });
+    /* Le navigateur ne verifie sw.js qu'a la navigation. Sur un poste
+       d'atelier ouvert toute la journee, ca n'arrive jamais. */
+    setInterval(() => reg.update().catch(() => {}), 10 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
 </script>
 </body>
